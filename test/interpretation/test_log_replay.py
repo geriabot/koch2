@@ -101,3 +101,16 @@ def test_no_log_dir_writes_nothing(tmp_path, monkeypatch):
     InterpretationServer(questions=QUESTIONS, backends={'m': fake}).interpret(
         request('needs', 'x'))
     assert os.listdir(tmp_path) == []
+
+
+def test_log_without_images(tmp_path):
+    """log_images false: the calls are logged, the images only by their sha256, none saved."""
+    log_dir = str(tmp_path / 'log')
+    fake = FakeBackend({'by_question': {'identify': ['{"id": 2}']}})
+    server = InterpretationServer(questions=QUESTIONS, backends={'m': fake}, log_dir=log_dir,
+                                  log_images=False)
+    server.interpret(request('identify', 'a', images=[image(1)]))
+    calls = read_calls(log_dir)
+    assert len(calls) == 1 and len(calls[0]['images']) == 1
+    assert '/' not in calls[0]['images'][0] and len(calls[0]['images'][0]) == 64
+    assert os.listdir(log_dir) == ['calls.jsonl']

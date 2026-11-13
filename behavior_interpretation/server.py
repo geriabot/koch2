@@ -44,6 +44,7 @@ The configuration (all of it given when the server starts, never by a request):
                    and its variants'; {question: {route: <route>, variants: false}} replaces
                    only its definition's (a variant that names its own route keeps it)
   log_dir          where the call log is written ('' = no log)
+  log_images       false: the call log names each image by its sha256 and saves none
 
 start_warmups() loads the models of the routes with `warmup: true` in the background.
 """
@@ -129,7 +130,7 @@ class InterpretationServer:
 
     def __init__(self, questions=None, questions_file='', templates=None, templates_file='',
                  question_modules=(), routes=None, default_route='', variants=None,
-                 interpreter_overrides=None, log_dir='', log_file=LOG_FILE, node=None,
+                 interpreter_overrides=None, log_dir='', log_file=LOG_FILE, log_images=True, node=None,
                  backends=None, interpreters=None, route_overrides=None, templates_files=()):
         """
         Build the server; ConfigError if the configuration cannot answer its questions.
@@ -192,7 +193,7 @@ class InterpretationServer:
                 raise ConfigError(f'route_overrides: {name}: no route "{route}" '
                                   f'(routes: {sorted(self.routes)})')
 
-        self.log = CallLog(log_dir, log_file)
+        self.log = CallLog(log_dir, log_file, save_images=log_images)
         self.warmups = {}        # route -> loading, ready or failed (start_warmups)
         self._in_progress = {}   # request_id -> the calls in progress, for cancel()
         self._in_progress_lock = threading.Lock()

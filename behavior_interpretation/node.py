@@ -35,6 +35,7 @@ Parameters (each system launches its own server, configured only here):
   route_overrides.<question>.route|variants   the same; variants false leaves the routes of
                                    its variants alone
   log_dir, log_file                the call log ('' = no log; default file calls.jsonl)
+  log_images                       false: the call log saves no image (only its sha256)
   service_name, cancel_service_name  the services ('' cancel: `cancel` next to service_name)
 
 Calls are answered concurrently (the server keeps no state between them).
@@ -67,6 +68,7 @@ PARAMETERS = {
     'default_route': '',
     'log_dir': '',
     'log_file': LOG_FILE,
+    'log_images': True,
     'service_name': 'interpretation/interpret',
     'cancel_service_name': '',
 }
@@ -126,6 +128,7 @@ class InterpretationServerNode(Node):
             route_overrides=nested(self.get_parameters_by_prefix('route_overrides')),
             log_dir=value('log_dir').value,
             log_file=value('log_file').value or LOG_FILE,
+            log_images=value('log_images').value,
             node=self)
 
         group = ReentrantCallbackGroup()

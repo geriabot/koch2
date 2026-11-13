@@ -48,21 +48,27 @@ IMAGES_DIR = 'images'
 
 
 class CallLog:
-    """Appends the calls to <log_dir>/<file_name>; nothing is written without a log_dir."""
+    """Appends the calls to <log_dir>/<file_name>; nothing is written without a log_dir. With
+    save_images false, no image is written: the calls name each image by its sha256 only."""
 
-    def __init__(self, log_dir='', file_name=LOG_FILE):
+    def __init__(self, log_dir='', file_name=LOG_FILE, save_images=True):
         self.log_dir = os.path.expanduser(log_dir) if log_dir else ''
         self.path = os.path.join(self.log_dir, file_name) if self.log_dir else ''
+        self.save_images = bool(save_images)
         self._lock = threading.Lock()
         if self.log_dir:
-            os.makedirs(os.path.join(self.log_dir, IMAGES_DIR), exist_ok=True)
+            os.makedirs(os.path.join(self.log_dir, IMAGES_DIR) if self.save_images else self.log_dir,
+                        exist_ok=True)
 
     @property
     def enabled(self):
         return bool(self.log_dir)
 
     def save_image(self, image):
-        """Save the image's PNG (only the first time); return its path relative to log_dir."""
+        """Save the image's PNG (only the first time); return its path relative to log_dir (its
+        sha256, without saving it, when save_images is false)."""
+        if not self.save_images:
+            return image.sha256
         relative = os.path.join(IMAGES_DIR, image.sha256 + '.png')
         if not self.log_dir:
             return relative

@@ -682,7 +682,8 @@ are listed in [docs/INTERPRETATION.md](docs/INTERPRETATION.md#linking).
 
 With `log_dir` set, the server appends one JSON line per call to `<log_dir>/calls.jsonl` (the
 question, the context, the prompt, the schema, every attempt and its raw answer, the answer, its
-source, latency and tokens) and saves each image once as `<log_dir>/images/<sha256>.png`. A route
+source, latency and tokens) and saves each image once as `<log_dir>/images/<sha256>.png`; with
+`log_images: false` it saves no image and names each one by its sha256 only. A route
 with `backend: recorded` and `log_files: [<log_dir>/calls.jsonl]` answers every call from the
 log, by question and prompt, so that a run is reproduced without a model.
 
