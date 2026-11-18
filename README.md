@@ -15,12 +15,8 @@ and repair its trees with a language model, and *interpretation*, a service that
 narrow questions that an orchestrator or a tree asks about unstructured input (natural
 language, images).
 
-| ROS 2 distribution | Branch |
-|---|---|
-| Jazzy | `main` |
-| Lyrical | `lyrical` ([differences](#ros-2-lyrical)) |
-
-License: Apache-2.0.
+It builds on ROS 2 Humble, Jazzy and Lyrical from the single branch `main`
+([ROS 2 distributions](#ros-2-distributions)).
 
 ## Contents
 
@@ -33,7 +29,7 @@ License: Apache-2.0.
 - [LLM orchestrators (optional)](#llm-orchestrators-optional)
 - [Interpretation (optional)](#interpretation-optional)
 - [Executables and launch files](#executables-and-launch-files)
-- [ROS 2 Lyrical](#ros-2-lyrical)
+- [ROS 2 distributions](#ros-2-distributions)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Used by](#used-by)
@@ -98,9 +94,9 @@ sensor_msgs, tf2_ros, rclpy) is a ROS 2 binary package that rosdep installs.
 ### Base
 
 ```bash
-source /opt/ros/jazzy/setup.bash          # or /opt/ros/lyrical/setup.bash
+source /opt/ros/jazzy/setup.bash          # or humble, or lyrical
 mkdir -p ~/ws/src && cd ~/ws/src
-git clone https://github.com/geriabot/koch2.git    # Lyrical: add -b lyrical
+git clone https://github.com/geriabot/koch2.git
 cd ~/ws
 rosdep install --from-paths src --ignore-src -y \
   --skip-keys "llm_planner_interfaces llm_bt_builder"
@@ -431,7 +427,7 @@ install(TARGETS ${PROJECT_NAME}_orchestrator LIBRARY DESTINATION lib)
 ament_package()
 ```
 
-This form links targets and builds on Jazzy and on Lyrical. The library is installed to `lib/`
+This form links targets and builds on Humble, Jazzy and Lyrical. The library is installed to `lib/`
 of the package, and the configuration names it:
 
 ```yaml
@@ -715,21 +711,22 @@ log, by question and prompt, so that a run is reproduced without a model.
 | `llm_dummy_demo.launch.py` | `config_file` (`config/llm_config.yaml`), `skills_file` (`config/skills.yaml`), `launch_llm_nodes` (`false`), `save_exec` (`false`), `replan_active` (`true`) | the planner and tree builder (optional), `mission_executor`, `start_mission` (needs `llm.repos` and dummy_bt_nodes) |
 | `llm_bt_eval.launch.py` | see [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md) | `llm_bt_executor` and `static_tf_publisher` (needs `llm.repos` and dummy_bt_nodes) |
 
-## ROS 2 Lyrical
+## ROS 2 distributions
 
-Branch `lyrical` builds on ROS 2 Lyrical and on Jazzy. It differs from `main` in two places:
+`main` builds on ROS 2 Humble, Jazzy and Lyrical, with the same C++ API, configuration files,
+executables and launch files on the three. Three details of the code make it so:
 
 - `ament_target_dependencies()`, which the ament_cmake of Lyrical no longer provides, is replaced
-  by a CMake function, `link_ament_dependencies()`, that links the targets exported by each
-  dependency.
-- The LLM orchestrators read the future of `async_send_request()` with `.future.share()`, since
-  Lyrical returns a `FutureAndRequestId`.
+  by a CMake function, `link_ament_dependencies()` (in `CMakeLists.txt`), that links the targets
+  exported by each dependency.
+- The futures of `async_send_request()` are read with `.future.share()`, since Lyrical returns a
+  `FutureAndRequestId`.
+- The service clients of interpretation take their QoS as `rmw_qos_profile_t` before rclcpp 21
+  (Humble) and as `rclcpp::QoS` after it.
 
-The C++ API, the configuration files, the executables and the launch files are the same on both
-branches. The interpretation targets use only `target_link_libraries()` and `.future.share()`, so
-they build unchanged on both. A package that uses `koch2` on Lyrical links it
-with `target_link_libraries()`, as in
-[Building and loading the library](#building-and-loading-the-library).
+A package that uses `koch2` on Lyrical links it with `target_link_libraries()`, as in
+[Building and loading the library](#building-and-loading-the-library); on Humble and Jazzy
+`ament_target_dependencies()` works too.
 
 ## Testing
 
