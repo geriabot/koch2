@@ -180,7 +180,9 @@ executable stays generic.
 ## LLM orchestrators
 
 The LLM orchestrators are built only when `llm_planner_interfaces` and `llm_bt_builder` are in
-the workspace (`llm.repos`). None of the base classes depends on them.
+the workspace (`llm.repos`). None of the base classes depends on them. They are experimental: the planning
+is a simple prototype based on a language model, little tested; the generation and repair of one
+tree is more mature. The design below describes them as they are.
 
 ### Classes
 
@@ -297,7 +299,7 @@ described in [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md).
 | `llm_max_bt_regenerations` | `3` | `LLMBTOrchestrator` |
 
 `mission_executor` fills the keys of the plan orchestrators from the YAML file
-([README](README.md#llm-orchestrators-optional)); `llm_bt_executor` fills those of
+([README](README.md#llm-orchestrators-experimental)); `llm_bt_executor` fills those of
 `LLMBTOrchestrator` from its command line.
 
 ### Extending them

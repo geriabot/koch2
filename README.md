@@ -10,10 +10,12 @@ BehaviorTree.CPP tree executed by its own *behavior runner*. A generic executabl
 `mission_executor`, builds the orchestrator and its runners from a YAML file, so that an
 application provides an orchestrator, its trees and a configuration, and no `main`.
 
-Two optional components extend the base: LLM orchestrators that plan a mission and generate
-and repair its trees with a language model, and *interpretation*, a service that answers the
-narrow questions that an orchestrator or a tree asks about unstructured input (natural
-language, images).
+The supported core is the orchestrator and everything below it: the FSM, the behavior runners
+and their trees. Two optional components extend it: *interpretation*, a service that answers the
+narrow questions that an orchestrator or a tree asks about unstructured input (natural language,
+images), and LLM orchestrators that plan a mission and generate and repair its trees with a
+language model. The LLM orchestrators are experimental: the planning is a simple, little-tested
+prototype; tree generation works but is less tested than the core.
 
 It builds on ROS 2 Humble, Jazzy and Lyrical from the single branch `main`
 ([ROS 2 distributions](#ros-2-distributions)).
@@ -26,7 +28,7 @@ It builds on ROS 2 Humble, Jazzy and Lyrical from the single branch `main`
 - [Mission configuration](#mission-configuration)
 - [Writing an orchestrator](#writing-an-orchestrator)
 - [Writing behaviors](#writing-behaviors)
-- [LLM orchestrators (optional)](#llm-orchestrators-optional)
+- [LLM orchestrators (experimental)](#llm-orchestrators-experimental)
 - [Interpretation (optional)](#interpretation-optional)
 - [Executables and launch files](#executables-and-launch-files)
 - [ROS 2 distributions](#ros-2-distributions)
@@ -47,10 +49,11 @@ below it. The figure is an editable draw.io file
 
 **Deliberation** decides which missions to pursue. The package does not provide it.
 
-**Planning** turns a mission into a sequence of steps. It is optional: the LLM orchestrators
-(types `llm` and `mcp`) ask a planner service for a plan, ask a tree builder service for one
-tree per step, run the trees, and repair or replan on failure
-([LLM orchestrators](#llm-orchestrators-optional)).
+**Planning** turns a mission into a sequence of steps. It is optional and experimental: the LLM
+orchestrators (types `llm` and `mcp`) ask a planner service for a plan, ask a tree builder
+service for one tree per step, run the trees, and repair or replan on failure
+([LLM orchestrators](#llm-orchestrators-experimental)). The planner is a simple prototype based
+on a language model, for trying the idea, and has been little tested.
 
 **Coordination** is an FSM implemented by a subclass of `BaseOrchestrator`, a ROS 2 lifecycle
 node. Its `control_cycle()` runs periodically and decides, from the result of the behavior that
@@ -85,7 +88,7 @@ The package is built from source with colcon. The table lists what each part req
 |---|---|---|
 | Base | `libkoch2` (`BaseOrchestrator`, `BehaviorRunner`, `OrchestratorFactory`), `mission_executor` with the example types `simple` and `restaurant`, `simple_example`, `restaurant_example`, `test_plan_executor`, `static_tf_publisher` | none (`thirdparty.repos` is empty) |
 | Interpretation | the service `Interpret`, `interpretation_server`, `libkoch2_interpretation` (`InterpretationClient`) and the BT nodes `Interpret` and `InterpretationResult`; always built with the base, linked only by the packages that ask for it | none |
-| LLM orchestrators | types `llm` and `mcp` in `mission_executor`; `llm_plan_executor`, `llm_bt_executor`, `start_mission` | `llm.repos`: [llm_bt_builder](https://github.com/rodperex/llm_bt_builder), [llm_planner](https://github.com/rodperex/llm_planner) |
+| LLM orchestrators (experimental) | types `llm` and `mcp` in `mission_executor`; `llm_plan_executor`, `llm_bt_executor`, `start_mission` | `llm.repos`: [llm_bt_builder](https://github.com/rodperex/llm_bt_builder), [llm_planner](https://github.com/rodperex/llm_planner) |
 | Example BT nodes | the nodes used by `config/simple_config.yaml`, `config/restaurant_config.yaml` and `behaviors/reusable/follow_behavior.xml` | `examples.repos`: [social_bt_nodes](https://github.com/rodperex/social_bt_nodes) |
 
 Every other dependency (rclcpp, rclcpp_lifecycle, behaviortree_cpp, yaml-cpp, nlohmann-json,
@@ -264,7 +267,7 @@ behaviors:                              # one behavior runner each (required)
 
 `mission_executor` writes `behaviors_config`, `plugin_libraries` and `package_name` to the
 blackboard, from which `BaseOrchestrator::on_configure()` creates the runners. The keys of the
-LLM types are listed in [LLM orchestrators](#llm-orchestrators-optional); `bt_nodes_packages`,
+LLM types are listed in [LLM orchestrators](#llm-orchestrators-experimental); `bt_nodes_packages`,
 present in the example configurations, is used only by them.
 
 The trees shipped with the package (`behaviors/reusable/`) can be used from any package by
@@ -478,9 +481,13 @@ tree before activating its runner.
 The `ID` of a `<BehaviorTree>` must differ from the IDs of the registered nodes: a tree `Greet`
 that uses a node `Greet` fails to build, and the runner's error names the tree file and the ID.
 
-## LLM orchestrators (optional)
+## LLM orchestrators (experimental)
 
-Built only with `llm.repos` ([Installation](#llm-orchestrators)).
+Built only with `llm.repos` ([Installation](#llm-orchestrators)). They are a work in progress:
+the planning (`llm`, `mcp`) is a simple prototype based on a language model, little tested;
+generating and repairing one tree (`llm_bt_executor`) works, and its evaluation is in
+[BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md). The FSM orchestrators of the previous sections are
+the supported way to coordinate behaviors.
 
 | Type or executable | Class | What it does |
 |---|---|---|
