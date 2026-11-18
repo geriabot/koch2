@@ -23,11 +23,26 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "rclcpp/version.h"
 
 namespace koch2
 {
 namespace interpretation
 {
+
+namespace
+{
+// The QoS of the service clients: rclcpp::QoS since Iron (rclcpp 21), rmw_qos_profile_t in
+// Humble (rclcpp 16)
+auto services_qos()
+{
+#if RCLCPP_VERSION_MAJOR >= 21
+  return rclcpp::ServicesQoS();
+#else
+  return rmw_qos_profile_services_default;
+#endif
+}
+}  // namespace
 
 using json = nlohmann::json;
 using Interpret = InterpretationClient::Interpret;
@@ -233,7 +248,7 @@ InterpretationClient::InterpretationClient(
   timeout_(timeout)
 {
   client_ = rclcpp::create_client<Interpret>(
-    node_base, node_graph, node_services, service_name, rclcpp::ServicesQoS(), nullptr);
+    node_base, node_graph, node_services, service_name, services_qos(), nullptr);
 }
 
 InterpretationHandle
@@ -388,7 +403,7 @@ InterpretationClient::cancel(const std::string & request_id)
     if (!cancel_client_) {
       cancel_client_ = rclcpp::create_client<CancelInterpretation>(
         node_base_, node_graph_, node_services_, cancel_service_for(service_name_arg_),
-        rclcpp::ServicesQoS(), nullptr);
+        services_qos(), nullptr);
     }
     client = cancel_client_;
   }
