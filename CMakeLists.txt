@@ -7,6 +7,22 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
+# ament_target_dependencies() is no longer part of ament_cmake since ROS 2 Lyrical: link the
+# targets that each dependency exports (<pkg>::<pkg>, the <pkg>_TARGETS of interface packages,
+# or its include directories and libraries). Works the same on Jazzy.
+function(link_ament_dependencies target)
+  foreach(dep ${ARGN})
+    if(TARGET ${dep}::${dep})
+      target_link_libraries(${target} ${dep}::${dep})
+    elseif(DEFINED ${dep}_TARGETS)
+      target_link_libraries(${target} ${${dep}_TARGETS})
+    else()
+      target_include_directories(${target} PUBLIC ${${dep}_INCLUDE_DIRS})
+      target_link_libraries(${target} ${${dep}_LIBRARIES})
+    endif()
+  endforeach()
+endfunction()
+
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
@@ -48,7 +64,7 @@ add_library(${PROJECT_NAME} SHARED
   src/koch2/behavior_runner.cpp
   src/koch2/orchestrator_factory.cpp
 )
-ament_target_dependencies(${PROJECT_NAME} ${dependencies})
+link_ament_dependencies(${PROJECT_NAME} ${dependencies})
 
 # Install library
 install(TARGETS ${PROJECT_NAME}
@@ -89,14 +105,14 @@ add_executable(mission_executor
   src/examples/simple_orchestrator.cpp
 )
 target_link_libraries(mission_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(mission_executor ${dependencies})
+link_ament_dependencies(mission_executor ${dependencies})
 if(WITH_LLM_ORCHESTRATORS)
   target_sources(mission_executor PRIVATE
     src/llm_plan_orchestrator.cpp
     src/mcp_llm_plan_orchestrator.cpp
   )
   target_compile_definitions(mission_executor PRIVATE KOCH2_WITH_LLM)
-  ament_target_dependencies(mission_executor llm_planner_interfaces llm_bt_builder)
+  link_ament_dependencies(mission_executor llm_planner_interfaces llm_bt_builder)
 endif()
 
 install(TARGETS mission_executor
@@ -109,7 +125,7 @@ add_executable(test_plan_executor
   src/test_plan_orchestrator.cpp
 )
 target_link_libraries(test_plan_executor ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(test_plan_executor ${dependencies})
+link_ament_dependencies(test_plan_executor ${dependencies})
 
 install(TARGETS test_plan_executor
   DESTINATION lib/${PROJECT_NAME}
@@ -117,7 +133,7 @@ install(TARGETS test_plan_executor
 # Static TF publisher node
 add_executable(static_tf_publisher src/static_tf_publisher.cpp)
 target_link_libraries(static_tf_publisher yaml-cpp)
-ament_target_dependencies(static_tf_publisher rclcpp geometry_msgs tf2 tf2_msgs tf2_ros)
+link_ament_dependencies(static_tf_publisher rclcpp geometry_msgs tf2 tf2_msgs tf2_ros)
 
 install(TARGETS static_tf_publisher
   DESTINATION lib/${PROJECT_NAME}
@@ -130,7 +146,7 @@ add_executable(restaurant_example
   src/yaml_utils.cpp
 )
 target_link_libraries(restaurant_example ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(restaurant_example ${dependencies} ament_index_cpp)
+link_ament_dependencies(restaurant_example ${dependencies} ament_index_cpp)
 
 install(TARGETS restaurant_example
   DESTINATION lib/${PROJECT_NAME}
@@ -143,7 +159,7 @@ add_executable(simple_example
   src/yaml_utils.cpp
 )
 target_link_libraries(simple_example ${PROJECT_NAME} yaml-cpp)
-ament_target_dependencies(simple_example ${dependencies} ament_index_cpp)
+link_ament_dependencies(simple_example ${dependencies} ament_index_cpp)
 
 install(TARGETS simple_example
   DESTINATION lib/${PROJECT_NAME}
@@ -158,7 +174,7 @@ if(WITH_LLM_ORCHESTRATORS)
     src/yaml_utils.cpp
   )
   target_link_libraries(llm_plan_executor ${PROJECT_NAME} yaml-cpp)
-  ament_target_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
+  link_ament_dependencies(llm_plan_executor ${dependencies} llm_planner_interfaces llm_bt_builder)
 
   install(TARGETS llm_plan_executor
     DESTINATION lib/${PROJECT_NAME}
@@ -170,7 +186,7 @@ if(WITH_LLM_ORCHESTRATORS)
     src/yaml_utils.cpp
   )
   target_link_libraries(llm_bt_executor ${PROJECT_NAME} yaml-cpp)
-  ament_target_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
+  link_ament_dependencies(llm_bt_executor ${dependencies} llm_bt_builder)
 
   install(TARGETS llm_bt_executor
     DESTINATION lib/${PROJECT_NAME}
@@ -180,7 +196,7 @@ if(WITH_LLM_ORCHESTRATORS)
 
   add_executable(start_mission src/start_mission.cpp)
   target_link_libraries(start_mission yaml-cpp)
-  ament_target_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
+  link_ament_dependencies(start_mission rclcpp llm_planner_interfaces geometry_msgs tf2_msgs)
 
   install(TARGETS start_mission
     DESTINATION lib/${PROJECT_NAME}
