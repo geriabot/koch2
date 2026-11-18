@@ -148,9 +148,11 @@ optionally, a function that registers nodes from code. On every activation it:
    registration function, if any.
 3. Builds the tree on the shared blackboard, from the file, or from the XML text given with
    `set_bt()` when there is one (the LLM orchestrators use it for generated trees).
-4. Creates a `BT::StdCoutLogger` and, when `enable_groot_monitoring` is true, a
+4. Creates a `BT::StdCoutLogger` and, when `enable_groot_monitoring` is true (false by default), a
    `BT::Groot2Publisher` on `groot_port` (Groot2 also uses the next port).
-5. Starts a wall timer that ticks the tree with `executeTick()` every `control_period_ms`.
+5. Starts a wall timer that ticks the tree with `executeTick()` every `control_period_ms`. A node
+   that throws while ticked does not end the process: the runner catches the exception, halts the
+   tree and reports `FAILURE` (the reason in its log and in `tick_error()`).
 
 An error in these steps (a file or a package that is not found, a library that cannot be loaded,
 an unknown node, invalid XML, a tree whose `ID` is the ID of a registered node) fails the

@@ -279,7 +279,7 @@ setting `package_name: "koch2"` on the entry; see
 | Node | Parameter | Default | Meaning |
 |---|---|---|---|
 | orchestrator | `control_cycle_rate_ms` | `100` | Period of `control_cycle()`, read when the orchestrator is constructed. The LLM orchestrators use `bt_control_period_ms` instead. |
-| each runner | `enable_groot_monitoring` | `true` | Publish the tree to Groot2 while the runner is active. |
+| each runner | `enable_groot_monitoring` | `false` | Publish the tree to Groot2 while the runner is active (opt-in: a debugging aid, created at every activation). |
 | each runner | `groot_port` | `5555` | Groot2 port; the next port is also used. Runners active at the same time need different ports. |
 
 The nodes run in the `mission_executor` process, so their parameters are given in a parameters
@@ -294,7 +294,8 @@ simple_orchestrator:
     control_cycle_rate_ms: 50
 state1_runner:
   ros__parameters:
-    enable_groot_monitoring: false
+    enable_groot_monitoring: true
+    groot_port: 5555
 ```
 
 ```bash
@@ -790,8 +791,13 @@ YAML `behaviors`.
 `/behavior_status`. Keep one active runner per state.
 
 **`Groot2 monitoring unavailable on port 5555`.** Another process, or another active runner,
-uses the port. Set `groot_port` per runner, or `enable_groot_monitoring: false`
-([Node parameters](#node-parameters)).
+uses the port: give each runner that monitors its own `groot_port` (it uses the next port too)
+([Node parameters](#node-parameters)). Monitoring is off unless `enable_groot_monitoring` is set.
+
+**`Behavior tree (...): exception while ticking`.** A node of the tree threw while it was ticked
+(e.g. a `Script` whose types do not match). The runner halts the tree and the behavior ends with
+`FAILURE`, which the orchestrator handles as any failure; the process goes on. The message, also in
+`tick_error()` of the runner until its next activation, names the cause.
 
 **A behavior file is not found.** A relative `behavior_file` is resolved in the share directory
 of the behavior's `package_name` (or the global one); the package must install its `behaviors/`

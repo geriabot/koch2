@@ -60,7 +60,9 @@ BehaviorRunner::BehaviorRunner(
   executed_(false)
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner constructor (%s)", name.c_str());
-  declare_parameter("enable_groot_monitoring", true);
+  // Off by default: a Groot2Publisher is created at every activation, and runners activated one
+  // after another on the same port made a process crash now and then (opt-in, one port per runner)
+  declare_parameter("enable_groot_monitoring", false);
   declare_parameter("groot_port", 5555);
   
   blackboard_->get("node", node_);
@@ -81,7 +83,22 @@ BehaviorRunner::control_cycle()
 
   if (!executed_) {
     RCLCPP_DEBUG(get_logger(), "BehaviorRunner ticking tree (%s)", get_name());
-    status_ = tree_.rootNode()->executeTick();
+    // A node that throws (e.g. a Script whose types do not match) ends the behavior with FAILURE,
+    // instead of ending the process with every orchestrator and runner in it
+    try {
+      status_ = tree_.rootNode()->executeTick();
+    } catch (const std::exception & e) {
+      tick_error_ = e.what();
+      RCLCPP_ERROR(get_logger(), "Behavior tree (%s): exception while ticking, the tree is halted "
+        "and the behavior FAILS: %s", get_name(), e.what());
+      try {
+        tree_.haltTree();
+      } catch (const std::exception & halt_error) {
+        RCLCPP_ERROR(get_logger(), "Behavior tree (%s): exception while halting: %s", get_name(),
+          halt_error.what());
+      }
+      status_ = BT::NodeStatus::FAILURE;
+    }
   
     switch (status_) {
       case BT::NodeStatus::SUCCESS:
@@ -116,6 +133,12 @@ BehaviorRunner::activation_error() const
   return activation_error_;
 }
 
+const std::string &
+BehaviorRunner::tick_error() const
+{
+  return tick_error_;
+}
+
 void
 BehaviorRunner::set_bt(const std::string & xml)
 {
@@ -127,6 +150,7 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
 {
   RCLCPP_INFO(get_logger(), "BehaviorRunner (%s) on_activate", get_name());
   activation_error_.clear();
+  tick_error_.clear();
 
   // Building the tree may fail (a file or a package that is not found, a plugin that cannot be
   // loaded, an unknown node, invalid XML, a tree ID that is a node ID): the transition then

@@ -88,6 +88,12 @@ public:
   const std::string & activation_error() const;
 
   /**
+   * @brief The exception of the last tick that threw, since the last activation ("" if none):
+   * the tree was halted and the behavior ended with FAILURE
+   */
+  const std::string & tick_error() const;
+
+  /**
    * @brief Set BT XML string directly (skips file loading in on_activate)
    * @param xml BehaviorTree XML string
    */
@@ -139,6 +145,7 @@ private:
   
   bool executed_;
   std::string activation_error_;
+  std::string tick_error_;
 };
 
 /**

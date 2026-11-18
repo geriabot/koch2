@@ -148,6 +148,38 @@ TEST_F(BaseOrchestratorTest, ValidTreeActivatesAndRuns)
   r->trigger_transition(Transition::TRANSITION_DEACTIVATE);
 }
 
+TEST_F(BaseOrchestratorTest, AnExceptionInATickFailsTheBehaviorWithoutEndingTheProcess)
+{
+  // The Script reads a variable that does not exist: it throws when it is ticked, not when the
+  // tree is built
+  auto r = runner("throwing_runner", write("throwing.xml",
+    "<root BTCPP_format=\"4\"><BehaviorTree ID=\"Main\">"
+    "<Script code=\"x := missing_variable + 1\"/></BehaviorTree></root>"));
+  r->trigger_transition(Transition::TRANSITION_CONFIGURE);
+  ASSERT_EQ(
+    r->trigger_transition(Transition::TRANSITION_ACTIVATE).id(),
+    State::PRIMARY_STATE_ACTIVE);
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(r->get_node_base_interface());
+  EXPECT_TRUE(spin_until(executor, [&]() {return r->get_bt_status() == BT::NodeStatus::FAILURE;}));
+  EXPECT_NE(r->tick_error(), "");
+  r->trigger_transition(Transition::TRANSITION_DEACTIVATE);
+  // Activated again, it starts clean
+  ASSERT_EQ(
+    r->trigger_transition(Transition::TRANSITION_ACTIVATE).id(),
+    State::PRIMARY_STATE_ACTIVE);
+  EXPECT_EQ(r->tick_error(), "");
+  r->trigger_transition(Transition::TRANSITION_DEACTIVATE);
+}
+
+TEST_F(BaseOrchestratorTest, GrootMonitoringIsOffByDefault)
+{
+  auto r = std::make_shared<BehaviorRunner>(
+    blackboard_, "default_runner", write("valid2.xml", kValid), std::vector<std::string>{},
+    "koch2", 10);
+  EXPECT_FALSE(r->get_parameter("enable_groot_monitoring").as_bool());
+}
+
 TEST_F(BaseOrchestratorTest, TreeIdEqualToANodeIdFailsTheActivationWithItsName)
 {
   const auto file = write("conflict.xml", kTreeIdIsNodeId);
