@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/media/koch2_logo.svg" alt="koch2" width="480">
+</p>
+
 # koch2
 
 `koch2` is a ROS 2 framework for the behavioral control of a robot. A finite
