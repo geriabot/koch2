@@ -1,7 +1,7 @@
 # Source dependencies of the LLM orchestrators (orchestrator types llm, mcp and llm_bt) and of
-# llm_plan_executor, llm_bt_executor and start_mission. Without them behavior_architecture builds
-# its base only. Import them next to behavior_architecture:
-#   vcs import <ws>/src < behavior_architecture/llm.repos
+# llm_plan_executor, llm_bt_executor and start_mission. Without them koch2 builds
+# its base only. Import them next to koch2:
+#   vcs import <ws>/src < koch2/llm.repos
 repositories:
   llm_bt_builder:
     type: git

@@ -23,7 +23,7 @@ The launch file intentionally does not start `llm_bt_builder`, so you can run th
 ```bash
 source install/setup.bash
 
-ros2 launch behavior_architecture llm_bt_eval.launch.py \
+ros2 launch koch2 llm_bt_eval.launch.py \
   objective_file:=/absolute/path/to/objective.yaml \
   bt_nodes_package:=social_bt_nodes \
   plugin_library:=libsocial_bt_nodes_plugin.so \
@@ -33,7 +33,7 @@ ros2 launch behavior_architecture llm_bt_eval.launch.py \
 To enable episodic memory (stores BT success/failure cases across runs):
 
 ```bash
-ros2 launch behavior_architecture llm_bt_eval.launch.py \
+ros2 launch koch2 llm_bt_eval.launch.py \
   objective_file:=/absolute/path/to/objective.yaml \
   task_name:=take_order_eval \
   use_episodic_memory:=true
@@ -42,7 +42,7 @@ ros2 launch behavior_architecture llm_bt_eval.launch.py \
 If you prefer explicit capabilities:
 
 ```bash
-ros2 launch behavior_architecture llm_bt_eval.launch.py \
+ros2 launch koch2 llm_bt_eval.launch.py \
   objective_file:=/absolute/path/to/objective.yaml \
   capabilities_yaml:=/absolute/path/to/capabilities.yaml
 ```
@@ -50,7 +50,7 @@ ros2 launch behavior_architecture llm_bt_eval.launch.py \
 For isolated validation of posterior steps that depend on previous blackboard outputs:
 
 ```bash
-ros2 launch behavior_architecture llm_bt_eval.launch.py \
+ros2 launch koch2 llm_bt_eval.launch.py \
   objective_file:=/absolute/path/to/approach_customer.yaml \
   blackboard_seed:=/absolute/path/to/blackboard_seed.yaml \
   strict_objective_inputs:=true
@@ -61,7 +61,7 @@ ros2 launch behavior_architecture llm_bt_eval.launch.py \
 ```bash
 source install/setup.bash
 
-ros2 run behavior_architecture llm_bt_executor -- \
+ros2 run koch2 llm_bt_executor -- \
   --objective /absolute/path/to/objective.yaml \
   --bt-nodes-package social_bt_nodes \
   --plugin-library libsocial_bt_nodes_plugin.so \
@@ -74,7 +74,7 @@ ros2 run behavior_architecture llm_bt_executor -- \
 With episodic memory enabled:
 
 ```bash
-ros2 run behavior_architecture llm_bt_executor -- \
+ros2 run koch2 llm_bt_executor -- \
   --objective /absolute/path/to/objective.yaml \
   --task-name take_order_eval \
   --use-episodic-memory \
@@ -90,7 +90,7 @@ If you already have a capabilities file, replace `--bt-nodes-package` with:
 For posterior steps requiring previous context keys, preload the blackboard and validate required inputs:
 
 ```bash
-ros2 run behavior_architecture llm_bt_executor -- \
+ros2 run koch2 llm_bt_executor -- \
   --objective /absolute/path/to/approach_customer.yaml \
   --blackboard-seed /absolute/path/to/blackboard_seed.yaml \
   --strict-objective-inputs

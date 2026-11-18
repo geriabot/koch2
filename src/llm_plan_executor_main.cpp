@@ -14,7 +14,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
-#include "behavior_architecture/llm_plan_orchestrator.hpp"
+#include "koch2/llm_plan_orchestrator.hpp"
 
 int main(int argc, char ** argv)
 {
@@ -27,7 +27,7 @@ int main(int argc, char ** argv)
   auto blackboard = BT::Blackboard::create();
 
   auto orchestrator =
-    std::make_shared<behavior_architecture::LLMPlanOrchestrator>(blackboard);
+    std::make_shared<koch2::LLMPlanOrchestrator>(blackboard);
 
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);

@@ -18,12 +18,12 @@ import json
 import threading
 import time
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.interpreters.llm.backends import BackendError
-from behavior_interpretation.interpreters.llm.backends import create_backend
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
-from behavior_interpretation.interpreters.llm.backends import ollama
-from behavior_interpretation.questions import ConfigError
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.interpreters.llm.backends import BackendError
+from koch2_interpretation.interpreters.llm.backends import create_backend
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation.interpreters.llm.backends import ollama
+from koch2_interpretation.questions import ConfigError
 from failing_server import FailingServer
 import pytest
 

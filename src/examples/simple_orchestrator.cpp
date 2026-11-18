@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/examples/simple_orchestrator.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
+#include "koch2/examples/simple_orchestrator.hpp"
+#include "koch2/orchestrator_factory.hpp"
 
-namespace behavior_architecture
+namespace koch2
 {
 namespace examples
 {
@@ -100,4 +100,4 @@ void SimpleOrchestrator::go_to_state(int state)
 }
 
 }  // namespace examples
-}  // namespace behavior_architecture
+}  // namespace koch2

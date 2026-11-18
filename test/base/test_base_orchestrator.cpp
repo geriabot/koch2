@@ -24,16 +24,16 @@
 
 #include <unistd.h>
 
-#include "behavior_architecture/base_orchestrator.hpp"
-#include "behavior_architecture/behavior_config.hpp"
-#include "behavior_architecture/behavior_runner.hpp"
+#include "koch2/base_orchestrator.hpp"
+#include "koch2/behavior_config.hpp"
+#include "koch2/behavior_runner.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 using namespace std::chrono_literals;
-using behavior_architecture::BehaviorConfig;
-using behavior_architecture::BehaviorRunner;
+using koch2::BehaviorConfig;
+using koch2::BehaviorRunner;
 using lifecycle_msgs::msg::State;
 using lifecycle_msgs::msg::Transition;
 
@@ -51,7 +51,7 @@ const char * const kTreeIdIsNodeId =
   "</root>";
 
 /// An orchestrator whose protected members the tests use; it has no FSM
-class ProbeOrchestrator : public behavior_architecture::BaseOrchestrator
+class ProbeOrchestrator : public koch2::BaseOrchestrator
 {
 public:
   explicit ProbeOrchestrator(BT::Blackboard::Ptr blackboard)
@@ -74,7 +74,7 @@ protected:
   void SetUp() override
   {
     dir_ = std::filesystem::temp_directory_path() /
-      ("behavior_architecture_test_" + std::to_string(::getpid()));
+      ("koch2_test_" + std::to_string(::getpid()));
     std::filesystem::create_directories(dir_);
     blackboard_ = BT::Blackboard::create();
   }
@@ -94,7 +94,7 @@ protected:
   std::shared_ptr<BehaviorRunner> runner(const std::string & name, const std::string & file)
   {
     auto r = std::make_shared<BehaviorRunner>(
-      blackboard_, name, file, std::vector<std::string>{}, "behavior_architecture", 10);
+      blackboard_, name, file, std::vector<std::string>{}, "koch2", 10);
     r->set_parameter(rclcpp::Parameter("enable_groot_monitoring", false));
     return r;
   }
@@ -124,11 +124,11 @@ TEST(TreeIdsUsedByNodes, NamesTheConflictingIds)
 {
   BT::BehaviorTreeFactory factory;
   EXPECT_EQ(
-    behavior_architecture::tree_ids_used_by_nodes(kTreeIdIsNodeId, factory),
+    koch2::tree_ids_used_by_nodes(kTreeIdIsNodeId, factory),
     std::vector<std::string>{"Sleep"});
-  EXPECT_TRUE(behavior_architecture::tree_ids_used_by_nodes(kValid, factory).empty());
+  EXPECT_TRUE(koch2::tree_ids_used_by_nodes(kValid, factory).empty());
   EXPECT_EQ(
-    behavior_architecture::tree_ids_used_by_nodes(
+    koch2::tree_ids_used_by_nodes(
       "<root><BehaviorTree ID='Main'><SubTree ID=\"Delay\"/></BehaviorTree>"
       "<BehaviorTree ID=\"Delay\"><AlwaysSuccess/></BehaviorTree></root>", factory),
     std::vector<std::string>{"Delay"});

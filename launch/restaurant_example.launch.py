@@ -22,7 +22,7 @@ def generate_launch_description():
     """Launch the restaurant example with behavior architecture."""
     
     restaurant_example_node = Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='restaurant_example',
         name='restaurant_example',
         output='screen',

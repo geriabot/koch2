@@ -26,14 +26,14 @@ import threading
 import time
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.call_log import read_calls
-from behavior_interpretation.interpreters.llm.backends import BackendError
-from behavior_interpretation.interpreters.llm.backends import BackendTimeout
-from behavior_interpretation.interpreters.llm.backends import create_backend
-from behavior_interpretation.interpreters.llm.backends import Limits
-from behavior_interpretation.interpreters.llm.backends import retries
-from behavior_interpretation.questions import ConfigError
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.call_log import read_calls
+from koch2_interpretation.interpreters.llm.backends import BackendError
+from koch2_interpretation.interpreters.llm.backends import BackendTimeout
+from koch2_interpretation.interpreters.llm.backends import create_backend
+from koch2_interpretation.interpreters.llm.backends import Limits
+from koch2_interpretation.interpreters.llm.backends import retries
+from koch2_interpretation.questions import ConfigError
 from failing_server import FailingServer
 import pytest
 import sdk_retries_reference as reference

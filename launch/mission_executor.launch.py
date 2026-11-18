@@ -30,7 +30,7 @@ def generate_launch_description():
     """Launch the generic mission executor with a YAML configuration file."""
     
     # Get package directory
-    pkg_dir = get_package_share_directory('behavior_architecture')
+    pkg_dir = get_package_share_directory('koch2')
     
     # Default config file
     default_config_file = os.path.join(pkg_dir, 'config', 'restaurant_config.yaml')
@@ -85,7 +85,7 @@ def generate_launch_description():
 
     # Mission executor node
     mission_executor_node = Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='mission_executor',
         namespace=LaunchConfiguration('namespace'),
         output='screen',

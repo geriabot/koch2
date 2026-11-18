@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Prints what a package that finds behavior_architecture, without asking for interpretation,
-# receives: the default variables (behavior_architecture_TARGETS, _LIBRARIES, _INCLUDE_DIRS,
+# Prints what a package that finds koch2, without asking for interpretation,
+# receives: the default variables (koch2_TARGETS, _LIBRARIES, _INCLUDE_DIRS,
 # _DEPENDENCIES, _RECURSIVE_DEPENDENCIES, _DEFINITIONS, _LINK_FLAGS, _LIBRARY_DIRS) and whether
-# the aggregate target behavior_architecture::behavior_architecture exists. One list item per
+# the aggregate target koch2::koch2 exists. One list item per
 # line; the package's install prefix is printed as <prefix>, so that two installs compare equal.
 #
 # The opt-in variables of interpretation are printed to stderr, for information only.
 #
-# Usage (with the environment and the install of behavior_architecture sourced):
+# Usage (with the environment and the install of koch2 sourced):
 #   test/check_consumer_variables.sh                   print to stdout
 #   test/check_consumer_variables.sh -o FILE           write to FILE
 #   test/check_consumer_variables.sh -c BASELINE       compare with BASELINE (exit 1 if they differ)
@@ -44,29 +44,29 @@ trap 'rm -rf "$probe"' EXIT
 
 cat > "$probe/CMakeLists.txt" <<'CMAKE'
 cmake_minimum_required(VERSION 3.16)
-project(behavior_architecture_consumer_probe)
-find_package(behavior_architecture REQUIRED)
-get_filename_component(_prefix "${behavior_architecture_DIR}/../../.." ABSOLUTE)
+project(koch2_consumer_probe)
+find_package(koch2 REQUIRED)
+get_filename_component(_prefix "${koch2_DIR}/../../.." ABSOLUTE)
 set(_lines "")
 foreach(_var TARGETS LIBRARIES INCLUDE_DIRS DEPENDENCIES RECURSIVE_DEPENDENCIES DEFINITIONS
     LINK_FLAGS LIBRARY_DIRS)
-  list(LENGTH behavior_architecture_${_var} _n)
-  string(APPEND _lines "behavior_architecture_${_var} (${_n})\n")
-  foreach(_item IN LISTS behavior_architecture_${_var})
+  list(LENGTH koch2_${_var} _n)
+  string(APPEND _lines "koch2_${_var} (${_n})\n")
+  foreach(_item IN LISTS koch2_${_var})
     string(REPLACE "${_prefix}" "<prefix>" _item "${_item}")
     string(APPEND _lines "  ${_item}\n")
   endforeach()
 endforeach()
-if(TARGET behavior_architecture::behavior_architecture)
-  string(APPEND _lines "target behavior_architecture::behavior_architecture: defined\n")
+if(TARGET koch2::koch2)
+  string(APPEND _lines "target koch2::koch2: defined\n")
 else()
-  string(APPEND _lines "target behavior_architecture::behavior_architecture: not defined\n")
+  string(APPEND _lines "target koch2::koch2: not defined\n")
 endif()
 file(WRITE "${CMAKE_BINARY_DIR}/variables.txt" "${_lines}")
-message(STATUS "behavior_architecture_DIR=${behavior_architecture_DIR}")
-message(STATUS "behavior_architecture_INTERPRETATION_FOUND=${behavior_architecture_INTERPRETATION_FOUND}")
-message(STATUS "behavior_architecture_INTERPRETATION_TARGETS=[${behavior_architecture_INTERPRETATION_TARGETS}]")
-message(STATUS "behavior_architecture_INTERPRETATION_INTERFACE_TARGETS=[${behavior_architecture_INTERPRETATION_INTERFACE_TARGETS}]")
+message(STATUS "koch2_DIR=${koch2_DIR}")
+message(STATUS "koch2_INTERPRETATION_FOUND=${koch2_INTERPRETATION_FOUND}")
+message(STATUS "koch2_INTERPRETATION_TARGETS=[${koch2_INTERPRETATION_TARGETS}]")
+message(STATUS "koch2_INTERPRETATION_INTERFACE_TARGETS=[${koch2_INTERPRETATION_INTERFACE_TARGETS}]")
 CMAKE
 
 if ! cmake -S "$probe" -B "$probe/build" > "$probe/cmake.log" 2>&1; then
@@ -74,7 +74,7 @@ if ! cmake -S "$probe" -B "$probe/build" > "$probe/cmake.log" 2>&1; then
   echo "check_consumer_variables: the probe failed to configure" >&2
   exit 2
 fi
-grep -E "behavior_architecture_(DIR|INTERPRETATION)" "$probe/cmake.log" | sed 's/^-- /# /' >&2
+grep -E "koch2_(DIR|INTERPRETATION)" "$probe/cmake.log" | sed 's/^-- /# /' >&2
 
 result="$probe/build/variables.txt"
 if [ -n "$out" ]; then

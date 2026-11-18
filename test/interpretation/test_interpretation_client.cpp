@@ -24,16 +24,16 @@
 #include "nlohmann/json.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
-#include "behavior_architecture/interpretation/interpretation_client.hpp"
+#include "koch2/interpretation/interpretation_client.hpp"
 #include "fake_interpretation_server.hpp"
 
-using behavior_architecture::interpretation::BehaviorChoice;
-using behavior_architecture::interpretation::CancellationHandle;
-using behavior_architecture::interpretation::InterpretationClient;
-using behavior_architecture::interpretation::InterpretationHandle;
-using behavior_architecture::interpretation::InterpretationRequest;
-using behavior_architecture::interpretation::InterpretationResult;
-using behavior_architecture::interpretation::OfferedBehavior;
+using koch2::interpretation::BehaviorChoice;
+using koch2::interpretation::CancellationHandle;
+using koch2::interpretation::InterpretationClient;
+using koch2::interpretation::InterpretationHandle;
+using koch2::interpretation::InterpretationRequest;
+using koch2::interpretation::InterpretationResult;
+using koch2::interpretation::OfferedBehavior;
 using Status = InterpretationHandle::Status;
 using namespace std::chrono_literals;
 

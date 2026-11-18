@@ -1,8 +1,8 @@
-# Example: Using follow_behavior from behavior_architecture in dummy_robot
+# Example: Using follow_behavior from koch2 in dummy_robot
 # (https://github.com/geriabot/dummy_robot)
 
 # This config demonstrates how to use reusable behaviors from 
-# behavior_architecture package alongside dummy_robot's own behaviors
+# koch2 package alongside dummy_robot's own behaviors
 
 node_name: "dummy_robot_bt_node"
 
@@ -28,10 +28,10 @@ behaviors:
     behavior_file: "behaviors/dummy_state2.xml"
     control_period_ms: 50
   
-  # Reusable behavior from behavior_architecture package
+  # Reusable behavior from koch2 package
   - name: "follow_runner"
     behavior_file: "behaviors/reusable/follow_behavior.xml"
-    package_name: "behavior_architecture"  # Override to use behavior_architecture
+    package_name: "koch2"  # Override to use koch2
     control_period_ms: 50
 
 # The orchestrator can now activate "follow_runner" just like any other runner

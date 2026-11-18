@@ -1,8 +1,8 @@
-# Source dependencies of the base of behavior_architecture (BaseOrchestrator, BehaviorRunner,
+# Source dependencies of the base of koch2 (BaseOrchestrator, BehaviorRunner,
 # mission_executor with the example and plugin orchestrators): none. Every dependency is a ROS 2
 # binary package (rclcpp, rclcpp_lifecycle, behaviortree_cpp, yaml-cpp, tf2_ros...).
 #
 # The LLM orchestrators (llm, mcp, llm_bt) and their executables need llm.repos:
-#   vcs import <ws>/src < behavior_architecture/llm.repos
+#   vcs import <ws>/src < koch2/llm.repos
 # The BT node libraries of the example configs are in examples.repos.
 repositories: {}

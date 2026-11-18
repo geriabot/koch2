@@ -17,13 +17,13 @@
 import json
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.interpreters.llm.backends import create_backend
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
-from behavior_interpretation.interpreters.llm.backends import Limits
-from behavior_interpretation.questions import ConfigError
-from behavior_interpretation.validation import InvalidAnswer
-from behavior_interpretation.validation import parse_answer_strict
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.interpreters.llm.backends import create_backend
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation.interpreters.llm.backends import Limits
+from koch2_interpretation.questions import ConfigError
+from koch2_interpretation.validation import InvalidAnswer
+from koch2_interpretation.validation import parse_answer_strict
 import pytest
 from test_backends import SCHEMA
 from test_backends import Stub

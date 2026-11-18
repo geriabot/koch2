@@ -1,4 +1,4 @@
-#include "behavior_architecture/llm_bt_orchestrator.hpp"
+#include "koch2/llm_bt_orchestrator.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -11,11 +11,11 @@
 #include <stdexcept>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
-#include "behavior_architecture/yaml_utils.hpp"
+#include "koch2/orchestrator_factory.hpp"
+#include "koch2/yaml_utils.hpp"
 #include "yaml-cpp/yaml.h"
 
-namespace behavior_architecture
+namespace koch2
 {
 
 namespace
@@ -238,7 +238,7 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 LLMBTOrchestrator::on_configure(const rclcpp_lifecycle::State & previous_state)
 {
   auto runner = std::make_shared<BehaviorRunner>(
-    blackboard_, "llm_bt_runner", "", plugin_libraries_, "behavior_architecture",
+    blackboard_, "llm_bt_runner", "", plugin_libraries_, "koch2",
     control_cycle_rate_ms_);
   register_runner("llm_bt_runner", runner);
   return BaseOrchestrator::on_configure(previous_state);
@@ -1593,4 +1593,4 @@ void LLMBTOrchestrator::record_failure_case(
     task_goal.c_str(), failure_cause.c_str(), case_entry.generation_attempts);
 }
 
-}  // namespace behavior_architecture
+}  // namespace koch2

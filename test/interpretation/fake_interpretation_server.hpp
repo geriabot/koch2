@@ -24,8 +24,8 @@
 
 #include "nlohmann/json.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "behavior_architecture/srv/cancel_interpretation.hpp"
-#include "behavior_architecture/srv/interpret.hpp"
+#include "koch2/srv/cancel_interpretation.hpp"
+#include "koch2/srv/interpret.hpp"
 
 namespace interpretation_test
 {
@@ -42,8 +42,8 @@ namespace interpretation_test
 class FakeInterpretationServer
 {
 public:
-  using Interpret = behavior_architecture::srv::Interpret;
-  using CancelInterpretation = behavior_architecture::srv::CancelInterpretation;
+  using Interpret = koch2::srv::Interpret;
+  using CancelInterpretation = koch2::srv::CancelInterpretation;
 
   explicit FakeInterpretationServer(const std::string & ns)
   {

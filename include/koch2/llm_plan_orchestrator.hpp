@@ -1,0 +1,213 @@
+// Copyright 2025 Rodrigo Pérez-Rodríguez
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef KOCH2__LLM_PLAN_ORCHESTRATOR_HPP_
+#define KOCH2__LLM_PLAN_ORCHESTRATOR_HPP_
+
+#include <filesystem>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "behaviortree_cpp/bt_factory.h"
+#include "std_msgs/msg/string.hpp"
+
+#include "llm_planner_interfaces/srv/plan_task.hpp"
+#include "llm_planner_interfaces/srv/replan_task.hpp"
+#include "llm_planner_interfaces/srv/start_mission.hpp"
+#include "llm_bt_builder/srv/generate_bt.hpp"
+#include "llm_bt_builder/srv/fix_bt.hpp"
+
+#include "koch2/base_orchestrator.hpp"
+#include "koch2/orchestrator_factory.hpp"
+
+namespace koch2
+{
+
+class LLMPlanOrchestrator : public BaseOrchestrator
+{
+public:
+public:
+  explicit LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard);
+  ~LLMPlanOrchestrator() = default;
+
+  /// BaseOrchestrator requires this pure virtual; LLM uses its own internal FSM.
+  void go_to_state(int /*state*/) override {}
+
+private:
+  // Lifecycle overrides
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_configure(const rclcpp_lifecycle::State & previous_state) override;
+
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_activate(const rclcpp_lifecycle::State & previous_state) override;
+
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+
+  struct StepMetrics {
+    int replan_id = 0;
+    int step_id = 0;
+    long plan_time_ms = 0;         // Just for the initial plan, not replans
+    long replan_time_ms = 0;       // For replans, time taken by the replan request
+    long bt_gen_time_ms = 0;       // Time taken to generate the BT for this step
+    long bt_exec_time_ms = 0;      // Time taken to execute the BT for this step
+    int fix_count = 0;             // Number of fixes applied to this step
+    std::string bt_status;         // SUCCESS/FAILED
+  };
+
+  struct RunMetrics {
+    long plan_total_time_ms = 0;
+    long replan_total_time_ms = 0;
+    long bt_gen_total_time_ms = 0;
+    long bt_exec_total_time_ms = 0; // Suma de tiempos de ejecución de BTs
+    int replan_count = 0;           // Número total de replans
+    int fix_count_total = 0;        // Número total de fixes
+    std::vector<StepMetrics> steps;
+  };
+
+  RunMetrics run_metrics_;
+  std::chrono::steady_clock::time_point plan_start_time_;
+  std::chrono::steady_clock::time_point replan_start_time_;
+  std::chrono::steady_clock::time_point bt_gen_start_time_;
+  int current_replan_id_ = 0;
+  int current_fix_count_ = 0;
+  void write_metrics_csv();
+
+protected:
+  // ── FSM ──────────────────────────────────────────────────────────────────
+  enum class State
+  {
+    IDLE,
+    WAITING_PLAN,
+    GENERATING_BT,
+    WAITING_FIX_BT,
+    EXECUTING_BT,
+    WAITING_REPLAN,
+    SUCCESS,
+    FAILED
+  };
+
+protected:
+
+  State state_{State::IDLE};
+
+  // ── Goal context ──────────────────────────────────────────────────────────
+  std::string goal_;
+  std::string context_;
+  std::vector<std::string> skills_;  // capabilities available to the robot
+  std::vector<std::string> preconditions_;
+  std::vector<std::string> postconditions_;
+  std::string mission_name_;         // optional identifier for saved plan filenames
+  std::string useful_info_;          // información útil propagada desde StartMission
+
+  // ── Plan data ─────────────────────────────────────────────────────────────
+  struct Step
+  {
+    int id;
+    std::string description;
+    std::string objective_yaml;  // serialised objective: block passed to llm_bt_builder
+    std::vector<std::string> skills_used;  // skills declared at step level in the plan
+    std::vector<std::string> outputs;  // declared output blackboard variable names
+    std::string cached_bt_xml;  // BT XML accepted and run successfully; reused on FORCED_FAILURE restart
+  };
+
+  std::string plan_yaml_;
+  std::vector<Step> steps_;
+  std::size_t current_step_{0};
+  int replan_count_{0};
+  static constexpr int MAX_REPLAN_ATTEMPTS = 3;
+  int bt_regeneration_count_{0};
+  static constexpr int MAX_BT_REGENERATIONS = 3;
+  std::string last_failure_reason_;
+  std::string last_failure_code_;
+  std::vector<std::string> step_failure_history_;  // all failure reasons tried for current step
+  std::vector<std::string> initial_blackboard_keys_; // variables present before execution
+
+  // ── BehaviorTree internals ────────────────────────────────────────────────
+  // Plugins are loaded into the runner; no separate factory needed here.
+  bool tree_loaded_{false};
+
+  // ── ROS 2 interfaces ──────────────────────────────────────────────────────
+  rclcpp::Service<llm_planner_interfaces::srv::StartMission>::SharedPtr start_mission_srv_;
+
+  rclcpp::Client<llm_planner_interfaces::srv::PlanTask>::SharedPtr plan_client_;
+  rclcpp::Client<llm_planner_interfaces::srv::ReplanTask>::SharedPtr replan_client_;
+  rclcpp::Client<llm_bt_builder::srv::GenerateBT>::SharedPtr generate_bt_client_;
+  rclcpp::Client<llm_bt_builder::srv::FixBT>::SharedPtr fix_bt_client_;
+
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::String>::SharedPtr status_pub_;
+
+  // ── Pending async futures ─────────────────────────────────────────────────
+  using PlanFuture = rclcpp::Client<llm_planner_interfaces::srv::PlanTask>::SharedFuture;
+  using ReplanFuture = rclcpp::Client<llm_planner_interfaces::srv::ReplanTask>::SharedFuture;
+  using GenBTFuture = rclcpp::Client<llm_bt_builder::srv::GenerateBT>::SharedFuture;
+  using FixBTFuture = rclcpp::Client<llm_bt_builder::srv::FixBT>::SharedFuture;
+
+  std::optional<PlanFuture> plan_future_;
+  std::optional<ReplanFuture> replan_future_;
+  std::optional<GenBTFuture> gen_bt_future_;
+  std::optional<FixBTFuture> fix_bt_future_;
+
+  // ── Parameters ────────────────────────────────────────────────────────────
+  std::vector<std::string> plugin_libraries_;
+  std::string capabilities_yaml_;
+  double bt_timeout_sec_;
+  rclcpp::Time step_start_time_;
+  std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
+  bool replan_active_{true};       // enable/disable replanning after failures
+  bool restart_after_forced_{true};  // restart from step 0 on FORCED_FAILURE (vs replan)
+
+  // ── Execution saving ──────────────────────────────────────────────────────
+  bool save_exec_{false};
+  std::string exec_base_dir_{"exec"};
+  std::filesystem::path exec_run_dir_;
+  std::filesystem::path current_plan_dir_;
+
+protected:
+  // ── Extension hooks for MCP/specialized orchestrators ───────────────────
+  virtual void handle_start_mission(
+    const llm_planner_interfaces::srv::StartMission::Request::SharedPtr req,
+    llm_planner_interfaces::srv::StartMission::Response::SharedPtr resp);
+
+  virtual void request_plan();
+  virtual void request_replan();
+  virtual void request_generate_bt(const std::string & objective_yaml);
+  // Load step `idx` using its cached BT XML if available, or call request_generate_bt otherwise.
+  void advance_to_step(std::size_t idx);
+  virtual void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
+
+  bool is_local_error(const std::string & reason);
+
+  std::vector<Step> parse_plan(const std::string & yaml_str);
+  std::string load_file(const std::string & path);
+  void save_bt_xml(const std::string & bt_xml, std::size_t step);
+
+  /// Collect a descriptive failure reason from the BT tree and blackboard.
+  /// Must be called BEFORE haltTree() so node statuses are still valid.
+  virtual std::string collect_failure_reason();
+
+  void publish_status(const std::string & msg);
+  virtual void transition_to(State new_state);
+  std::string state_name(State s) const;
+
+private:
+  // ── Callbacks & helpers ───────────────────────────────────────────────────
+  void control_cycle();
+};
+
+}  // namespace koch2
+
+#endif  // KOCH2__LLM_PLAN_ORCHESTRATOR_HPP_

@@ -21,15 +21,15 @@ import threading
 import time
 from types import SimpleNamespace
 
-from behavior_interpretation.fields import build_schema
-from behavior_interpretation.fields import parse_fields
-from behavior_interpretation.images import EncodedImage
-from behavior_interpretation.interpreters.llm.backends import BackendError
-from behavior_interpretation.interpreters.llm.backends import BackendTimeout
-from behavior_interpretation.interpreters.llm.backends import create_backend
-from behavior_interpretation.interpreters.llm.backends import Limits
-from behavior_interpretation.interpreters.llm.backends.llama_ros import llama_prompt
-from behavior_interpretation.interpreters.llm.backends.openai import manager_strict_schema
+from koch2_interpretation.fields import build_schema
+from koch2_interpretation.fields import parse_fields
+from koch2_interpretation.images import EncodedImage
+from koch2_interpretation.interpreters.llm.backends import BackendError
+from koch2_interpretation.interpreters.llm.backends import BackendTimeout
+from koch2_interpretation.interpreters.llm.backends import create_backend
+from koch2_interpretation.interpreters.llm.backends import Limits
+from koch2_interpretation.interpreters.llm.backends.llama_ros import llama_prompt
+from koch2_interpretation.interpreters.llm.backends.openai import manager_strict_schema
 import pytest
 
 SCHEMA = build_schema(parse_fields(['int:id']))

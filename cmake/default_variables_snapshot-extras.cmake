@@ -16,14 +16,14 @@
 # config files of the base's exports (cmake/default_variables_package_hook.cmake), and restored
 # by the package's last config file (default_variables-extras.cmake).
 
-foreach(_behavior_architecture_var TARGETS LIBRARIES INCLUDE_DIRS LIBRARY_DIRS DEPENDENCIES
+foreach(_koch2_var TARGETS LIBRARIES INCLUDE_DIRS LIBRARY_DIRS DEPENDENCIES
     RECURSIVE_DEPENDENCIES DEFINITIONS LINK_FLAGS)
-  if(DEFINED behavior_architecture_${_behavior_architecture_var})
-    set(_behavior_architecture_default_${_behavior_architecture_var}
-      "${behavior_architecture_${_behavior_architecture_var}}")
+  if(DEFINED koch2_${_koch2_var})
+    set(_koch2_default_${_koch2_var}
+      "${koch2_${_koch2_var}}")
   else()
-    unset(_behavior_architecture_default_${_behavior_architecture_var})
+    unset(_koch2_default_${_koch2_var})
   endif()
 endforeach()
-set(_behavior_architecture_default_variables_kept TRUE)
-unset(_behavior_architecture_var)
+set(_koch2_default_variables_kept TRUE)
+unset(_koch2_var)

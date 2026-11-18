@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/test_plan_orchestrator.hpp"
+#include "koch2/test_plan_orchestrator.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp/blackboard.h>
 #include <iostream>
@@ -37,7 +37,7 @@ int main(int argc, char ** argv)
     blackboard->set(
       "llm_plugin_libraries", std::vector<std::string>(args.begin() + 2, args.end()));
   }
-  auto orchestrator = std::make_shared<behavior_architecture::TestPlanOrchestrator>(blackboard);
+  auto orchestrator = std::make_shared<koch2::TestPlanOrchestrator>(blackboard);
 
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);

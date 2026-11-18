@@ -4,8 +4,8 @@
 /**/interpretation_server:
   ros__parameters:
     # package://<package>/<path> is resolved in the package's share directory
-    questions_file: package://behavior_architecture/config/interpretation/example_questions.yaml
-    templates_file: package://behavior_architecture/config/interpretation/example_templates.yaml
+    questions_file: package://koch2/config/interpretation/example_questions.yaml
+    templates_file: package://koch2/config/interpretation/example_templates.yaml
     question_modules: [""]        # Python modules with Question subclasses and rules
     default_route: text
     routes:

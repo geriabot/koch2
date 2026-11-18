@@ -47,7 +47,7 @@ This document is the user guide and reference. The design is described in
 Each system runs its own server, in its own namespace, configured at launch:
 
 ```bash
-ros2 launch behavior_architecture interpretation.launch.py \
+ros2 launch koch2 interpretation.launch.py \
   namespace:=my_robot params_file:=/path/to/interpretation_params.yaml
 ```
 
@@ -67,7 +67,7 @@ namespace of `mission_executor` (its argument `namespace`, by default none), whe
 orchestrator and the BT nodes resolve the relative service name:
 
 ```bash
-ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/mission.yaml \
+ros2 launch koch2 mission_executor.launch.py config_file:=/path/to/mission.yaml \
   namespace:=my_robot \
   interpretation:=true interpretation_params_file:=/path/to/interpretation_params.yaml
 # mission_executor's nodes and the service /my_robot/interpretation/interpret, in /my_robot
@@ -392,8 +392,8 @@ A question module, listed in `question_modules`, can define:
 
 ```python
 # my_robot/interpretation.py
-from behavior_interpretation import Question, formatter, rule
-from behavior_interpretation.validation import InvalidAnswer
+from koch2_interpretation import Question, formatter, rule
+from koch2_interpretation.validation import InvalidAnswer
 
 
 @rule('most_centered')
@@ -432,7 +432,7 @@ class ExtractSlots(Question):
 
 ## The service
 
-`behavior_architecture/srv/Interpret`:
+`koch2/srv/Interpret`:
 
 | Request field | Type | Meaning |
 |---|---|---|
@@ -456,11 +456,11 @@ class ExtractSlots(Question):
 With the example server running, the service can be called from the command line:
 
 ```bash
-ros2 service call /interpretation/interpret behavior_architecture/srv/Interpret \
+ros2 service call /interpretation/interpret koch2/srv/Interpret \
   "{question: choose_behavior, context: '{\"offered_ids\": [1, 2]}', text: 'Follow me'}"
 # success=True, answer='{"behavior_id": -1}', source='llm'
 
-ros2 service call /interpretation/interpret behavior_architecture/srv/Interpret \
+ros2 service call /interpretation/interpret koch2/srv/Interpret \
   "{question: extract_slots, context: '{\"slots\": [\"str:name\"]}', text: 'I am Ana'}"
 # success=True, answer='', source='invalid', fallback_reason='invalid'
 #   (the scripted answer has no field "name", and the question has no fallback)
@@ -468,7 +468,7 @@ ros2 service call /interpretation/interpret behavior_architecture/srv/Interpret 
 
 ### Cancelling calls
 
-A second service, `interpretation/cancel` (`behavior_architecture/srv/CancelInterpretation`),
+A second service, `interpretation/cancel` (`koch2/srv/CancelInterpretation`),
 cancels the calls in progress that were asked with a `request_id`, for example when the
 dialogue that asked them has ended:
 
@@ -486,21 +486,21 @@ answered as usual. A call without a `request_id` cannot be cancelled. Nothing ch
 system that never calls the service.
 
 ```bash
-ros2 service call /interpretation/cancel behavior_architecture/srv/CancelInterpretation \
+ros2 service call /interpretation/cancel koch2/srv/CancelInterpretation \
   "{request_id: dialogue-7}"
 # success=True, cancelled=1, message='1 calls in progress cancelled'
 ```
 
 ## Asking from an orchestrator
 
-`InterpretationClient` (header `behavior_architecture/interpretation/interpretation_client.hpp`,
-namespace `behavior_architecture::interpretation`) asks without blocking. It is owned by the
+`InterpretationClient` (header `koch2/interpretation/interpretation_client.hpp`,
+namespace `koch2::interpretation`) asks without blocking. It is owned by the
 orchestrator and uses the orchestrator's node, which `mission_executor` spins.
 
 ```cpp
-#include "behavior_architecture/interpretation/interpretation_client.hpp"
+#include "koch2/interpretation/interpretation_client.hpp"
 
-namespace interp = behavior_architecture::interpretation;
+namespace interp = koch2::interpretation;
 
 // Members
 std::unique_ptr<interp::InterpretationClient> client_;
@@ -565,7 +565,7 @@ Add the plugin library to the mission's `plugin_libraries`:
 
 ```yaml
 plugin_libraries:
-  - "libbehavior_architecture_interpretation_bt_nodes.so"
+  - "libkoch2_interpretation_bt_nodes.so"
 ```
 
 The nodes take the ROS node from the blackboard key `node` (an `rclcpp::Node::SharedPtr`, which
@@ -649,27 +649,27 @@ asks, with the reason in `message`.
 
 ## Linking
 
-`find_package(behavior_architecture)` sets the default variables
-(`behavior_architecture_LIBRARIES`, `_INCLUDE_DIRS`, `_TARGETS`, `_DEPENDENCIES`) to the base
+`find_package(koch2)` sets the default variables
+(`koch2_LIBRARIES`, `_INCLUDE_DIRS`, `_TARGETS`, `_DEPENDENCIES`) to the base
 library and its dependencies only. Interpretation is linked by naming it:
 
 | CMake name | Contents |
 |---|---|
-| `behavior_architecture::interpretation` | `InterpretationClient`, with the generated C++ interface and its dependencies. |
-| `${behavior_architecture_INTERPRETATION_TARGETS}` | The same, as a list. |
-| `${behavior_architecture_INTERPRETATION_INTERFACE_TARGETS}` | Only the generated interface (`behavior_architecture/srv/interpret.hpp`). |
-| `behavior_architecture_INTERPRETATION_FOUND` | `FALSE` when a dependency of interpretation is missing. |
+| `koch2::interpretation` | `InterpretationClient`, with the generated C++ interface and its dependencies. |
+| `${koch2_INTERPRETATION_TARGETS}` | The same, as a list. |
+| `${koch2_INTERPRETATION_INTERFACE_TARGETS}` | Only the generated interface (`koch2/srv/interpret.hpp`). |
+| `koch2_INTERPRETATION_FOUND` | `FALSE` when a dependency of interpretation is missing. |
 
 ```cmake
-find_package(behavior_architecture REQUIRED)
+find_package(koch2 REQUIRED)
 target_link_libraries(my_orchestrator
-  ${behavior_architecture_LIBRARIES}            # the base, as before
-  behavior_architecture::interpretation)        # the client
+  ${koch2_LIBRARIES}            # the base, as before
+  koch2::interpretation)        # the client
 ```
 
-`behavior_architecture::interpretation` does not include the base library, which is linked as
+`koch2::interpretation` does not include the base library, which is linked as
 usual. The BT nodes' library is not exported or linked: runners load it by name. From Python,
-the interface is `from behavior_architecture.srv import Interpret`.
+the interface is `from koch2.srv import Interpret`.
 
 ## Call log and replay
 
@@ -715,8 +715,8 @@ mkdir -p ~/interpretation_example && cd ~/interpretation_example
 cat > interpretation_params.yaml <<EOF
 /**/interpretation_server:
   ros__parameters:
-    questions_file: package://behavior_architecture/config/interpretation/example_questions.yaml
-    templates_file: package://behavior_architecture/config/interpretation/example_templates.yaml
+    questions_file: package://koch2/config/interpretation/example_questions.yaml
+    templates_file: package://koch2/config/interpretation/example_templates.yaml
     default_route: text
     routes:
       text:
@@ -759,7 +759,7 @@ EOF
 cat > mission.yaml <<EOF
 orchestrator_type: "simple"
 plugin_libraries:
-  - "libbehavior_architecture_interpretation_bt_nodes.so"
+  - "libkoch2_interpretation_bt_nodes.so"
 behaviors:
   - name: "state1_runner"
     behavior_file: "$PWD/extract.xml"
@@ -767,7 +767,7 @@ behaviors:
     behavior_file: "$PWD/choose.xml"
 EOF
 
-ros2 launch behavior_architecture mission_executor.launch.py config_file:=$PWD/mission.yaml \
+ros2 launch koch2 mission_executor.launch.py config_file:=$PWD/mission.yaml \
   interpretation:=true interpretation_params_file:=$PWD/interpretation_params.yaml
 ```
 
@@ -787,8 +787,8 @@ answers are the same:
 cat > replay_params.yaml <<EOF
 /**/interpretation_server:
   ros__parameters:
-    questions_file: package://behavior_architecture/config/interpretation/example_questions.yaml
-    templates_file: package://behavior_architecture/config/interpretation/example_templates.yaml
+    questions_file: package://koch2/config/interpretation/example_questions.yaml
+    templates_file: package://koch2/config/interpretation/example_templates.yaml
     default_route: text
     routes:
       text:
@@ -797,7 +797,7 @@ cat > replay_params.yaml <<EOF
         log_files: ["$PWD/log/calls.jsonl"]
 EOF
 
-ros2 launch behavior_architecture mission_executor.launch.py config_file:=$PWD/mission.yaml \
+ros2 launch koch2 mission_executor.launch.py config_file:=$PWD/mission.yaml \
   interpretation:=true interpretation_params_file:=$PWD/replay_params.yaml
 ```
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/interpretation/interpret_bt_nodes.hpp"
+#include "koch2/interpretation/interpret_bt_nodes.hpp"
 
 #include <chrono>
 #include <memory>
@@ -25,7 +25,7 @@
 #include "behaviortree_cpp/utils/demangle_util.h"
 #include "nlohmann/json.hpp"
 
-namespace behavior_architecture
+namespace koch2
 {
 namespace interpretation
 {
@@ -306,11 +306,11 @@ InterpretationResultNode::check()
 }
 
 }  // namespace interpretation
-}  // namespace behavior_architecture
+}  // namespace koch2
 
 BT_REGISTER_NODES(factory)
 {
-  factory.registerNodeType<behavior_architecture::interpretation::InterpretNode>("Interpret");
-  factory.registerNodeType<behavior_architecture::interpretation::InterpretationResultNode>(
+  factory.registerNodeType<koch2::interpretation::InterpretNode>("Interpret");
+  factory.registerNodeType<koch2::interpretation::InterpretationResultNode>(
     "InterpretationResult");
 }

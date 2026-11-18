@@ -47,7 +47,7 @@ The `simple` example orchestrator runs `state1_runner`, retrying it while it fai
 ```yaml
 # /tmp/test_tree.yaml
 orchestrator_type: "simple"
-package_name: "behavior_architecture"
+package_name: "koch2"
 plugin_libraries:
   - "libmy_nav_bt_nodes.so"
 behaviors:
@@ -58,9 +58,9 @@ behaviors:
 ```
 
 ```bash
-colcon build --packages-select behavior_architecture
+colcon build --packages-select koch2
 source install/setup.bash
-ros2 run behavior_architecture mission_executor /tmp/test_tree.yaml
+ros2 run koch2 mission_executor /tmp/test_tree.yaml
 ```
 
 The tree is tested in the situations it documents, including the failures: a missing target, a

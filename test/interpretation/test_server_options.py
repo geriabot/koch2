@@ -17,10 +17,10 @@
 import json
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.call_log import read_calls
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
-from behavior_interpretation.questions import ConfigError
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.call_log import read_calls
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation.questions import ConfigError
 import pytest
 
 
@@ -56,8 +56,8 @@ def test_request_max_tokens_must_be_a_count(value):
 
 
 def test_request_max_tokens_reaches_the_llm_manager_body():
-    from behavior_interpretation.interpreters.llm.backends import create_backend
-    from behavior_interpretation.interpreters.llm.backends import Limits
+    from koch2_interpretation.interpreters.llm.backends import create_backend
+    from koch2_interpretation.interpreters.llm.backends import Limits
     backend = create_backend('ollama', {'dialect': 'llm_manager'})
     payload = backend.build_payload('m', 'p', None, [], Limits(5, max_tokens=77))
     assert payload['options']['num_predict'] == 77

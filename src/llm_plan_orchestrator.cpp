@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/llm_plan_orchestrator.hpp"
-#include "behavior_architecture/yaml_utils.hpp"
+#include "koch2/llm_plan_orchestrator.hpp"
+#include "koch2/yaml_utils.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -26,7 +26,7 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "yaml-cpp/yaml.h"
 
-namespace behavior_architecture
+namespace koch2
 {
 
 // Auto-register with the factory so action_executor handles "llm" uniformly.
@@ -140,7 +140,7 @@ LLMPlanOrchestrator::on_configure(const rclcpp_lifecycle::State & previous_state
 
   // Create the single reusable runner (empty xml_path — always uses set_bt())
   auto runner = std::make_shared<BehaviorRunner>(
-    blackboard_, "llm_bt_runner", "", plugin_libraries_, "behavior_architecture",
+    blackboard_, "llm_bt_runner", "", plugin_libraries_, "koch2",
     control_cycle_rate_ms_);
   register_runner("llm_bt_runner", runner);
 
@@ -799,7 +799,7 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
     RCLCPP_INFO(get_logger(), "Injecting %zu step skills_used for step %zu",
       steps_[current_step_].skills_used.size(), current_step_);
   }
-  enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
+  enriched_objective = koch2::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
 
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
@@ -903,7 +903,7 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
     RCLCPP_INFO(get_logger(), "Injecting %zu step skills_used for step %zu (FixBT)",
       steps_[current_step_].skills_used.size(), current_step_);
   }
-  enriched_objective = behavior_architecture::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
+  enriched_objective = koch2::append_yaml_multiline_block(enriched_objective, "useful_info", useful_info_);
   auto keys = blackboard_->getKeys();
   if (!keys.empty()) {
     std::string vars_block = "\navailable_blackboard_vars:";
@@ -1199,4 +1199,4 @@ void LLMPlanOrchestrator::write_metrics_csv()
   }
 }
 
-}  // namespace behavior_architecture
+}  // namespace koch2

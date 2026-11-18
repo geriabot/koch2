@@ -17,16 +17,16 @@
 import json
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
-from behavior_interpretation.questions import ConfigError
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation.questions import ConfigError
 import pytest
 
 MODULE = '''
 import json
 
-from behavior_interpretation import Question, rule
-from behavior_interpretation.validation import InvalidAnswer
+from koch2_interpretation import Question, rule
+from koch2_interpretation.validation import InvalidAnswer
 
 
 class OwnReading(Question):

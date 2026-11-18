@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/interpretation/interpretation_client.hpp"
+#include "koch2/interpretation/interpretation_client.hpp"
 
 #include <algorithm>
 #include <future>
@@ -24,7 +24,7 @@
 
 #include "nlohmann/json.hpp"
 
-namespace behavior_architecture
+namespace koch2
 {
 namespace interpretation
 {
@@ -417,4 +417,4 @@ InterpretationClient::service_name() const
 }
 
 }  // namespace interpretation
-}  // namespace behavior_architecture
+}  // namespace koch2

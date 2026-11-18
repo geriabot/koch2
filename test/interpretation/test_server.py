@@ -17,13 +17,13 @@
 import json
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
-from behavior_interpretation.questions import ConfigError
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation.questions import ConfigError
 import pytest
 
 MODULE = '''
-from behavior_interpretation import Question, formatter, rule
+from koch2_interpretation import Question, formatter, rule
 
 
 @rule('most_centered')
@@ -50,7 +50,7 @@ class Greeting(Question):
 
     def validate(self, answer, context):
         if not answer['reply'].startswith('Hello'):
-            from behavior_interpretation.validation import InvalidAnswer
+            from koch2_interpretation.validation import InvalidAnswer
             raise InvalidAnswer('not a greeting')
         return answer
 

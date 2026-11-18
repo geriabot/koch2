@@ -1,16 +1,16 @@
-# Fixed-orchestrator configuration for behavior_architecture
+# Fixed-orchestrator configuration for koch2
 # orchestrator_type: "restaurant" selects the hard-coded restaurant state machine.
 # Use orchestrator_type: "llm" (see llm_config.yaml; needs llm.repos) for LLM-guided execution.
 #
 # Usage:
-#   ros2 launch behavior_architecture mission_executor.launch.py \
-#     config_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/restaurant_config.yaml
+#   ros2 launch koch2 mission_executor.launch.py \
+#     config_file:=$(ros2 pkg prefix koch2)/share/koch2/config/restaurant_config.yaml
 
 # ── Common fields (shared with LLM config) ────────────────────────────────────
 node_name: "bt_node"
 orchestrator_type: "restaurant"  # fixed orchestrator registered in OrchestratorFactory
 
-package_name: "behavior_architecture"
+package_name: "koch2"
 
 # Packages that provide the BT node plugins
 bt_nodes_packages:

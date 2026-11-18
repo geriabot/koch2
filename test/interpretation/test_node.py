@@ -21,13 +21,13 @@ import time
 import pytest
 
 rclpy = pytest.importorskip('rclpy')
-srv = pytest.importorskip('behavior_architecture.srv')
+srv = pytest.importorskip('koch2.srv')
 
 from rclpy.executors import MultiThreadedExecutor  # noqa: E402
 from rclpy.parameter import Parameter  # noqa: E402
 from sensor_msgs.msg import Image  # noqa: E402
 
-from behavior_interpretation.node import InterpretationServerNode  # noqa: E402,I100
+from koch2_interpretation.node import InterpretationServerNode  # noqa: E402,I100
 from failing_server import FailingServer  # noqa: E402
 
 

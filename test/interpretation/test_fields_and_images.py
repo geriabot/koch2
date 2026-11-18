@@ -18,20 +18,20 @@ import json
 from types import SimpleNamespace
 import zlib
 
-from behavior_interpretation.fields import build_schema
-from behavior_interpretation.fields import Field
-from behavior_interpretation.fields import FieldError
-from behavior_interpretation.fields import output_format_json
-from behavior_interpretation.fields import parse_fields
-from behavior_interpretation.fields import strict_schema
-from behavior_interpretation.fields import to_gemini_dialect
-from behavior_interpretation.images import EncodedImage
-from behavior_interpretation.images import image_to_png
-from behavior_interpretation.templates import fill_template
-from behavior_interpretation.templates import flatten_templates
-from behavior_interpretation.validation import InvalidAnswer
-from behavior_interpretation.validation import parse_answer
-from behavior_interpretation.validation import validate_fields
+from koch2_interpretation.fields import build_schema
+from koch2_interpretation.fields import Field
+from koch2_interpretation.fields import FieldError
+from koch2_interpretation.fields import output_format_json
+from koch2_interpretation.fields import parse_fields
+from koch2_interpretation.fields import strict_schema
+from koch2_interpretation.fields import to_gemini_dialect
+from koch2_interpretation.images import EncodedImage
+from koch2_interpretation.images import image_to_png
+from koch2_interpretation.templates import fill_template
+from koch2_interpretation.templates import flatten_templates
+from koch2_interpretation.validation import InvalidAnswer
+from koch2_interpretation.validation import parse_answer
+from koch2_interpretation.validation import validate_fields
 import pytest
 
 # The output fields of llm_router_msgs/GetLLMResponse (key, value), as attention sends them

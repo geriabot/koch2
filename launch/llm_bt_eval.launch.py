@@ -64,7 +64,7 @@ def launch_setup(context, *args, **kwargs):
 
     if publish_static_tf and tf_file:
         nodes.append(Node(
-            package='behavior_architecture',
+            package='koch2',
             executable='static_tf_publisher',
             name='static_tf_publisher',
             output='screen',
@@ -75,7 +75,7 @@ def launch_setup(context, *args, **kwargs):
         ))
 
     nodes.append(Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='llm_bt_executor',
         name='llm_bt_executor',
         output='screen',

@@ -22,7 +22,7 @@ def generate_launch_description():
     """Launch the simple example with 2-state behavior architecture."""
     
     simple_example_node = Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='simple_example',
         output='screen',
         emulate_tty=True,

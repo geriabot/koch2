@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The interpretation server (behavior_interpretation.node)."""
+"""The interpretation server (koch2_interpretation.node)."""
 
-from behavior_interpretation.node import exit_now, main
+from koch2_interpretation.node import exit_now, main
 
 if __name__ == '__main__':
     exit_now(main())

@@ -19,7 +19,7 @@ behaviors:
     behavior_file: "behaviors/greet.xml"  # from my_robot
   - name: "follow"
     behavior_file: "behaviors/reusable/follow_behavior.xml"
-    package_name: "behavior_architecture"
+    package_name: "koch2"
 ```
 
 The orchestrator runs it with `activate_runner("follow")`, as any other runner.
@@ -32,7 +32,7 @@ A tree of the package includes the file and uses its tree as a subtree:
 
 ```xml
 <root BTCPP_format="4">
-  <include ros_pkg="behavior_architecture" path="behaviors/reusable/follow_behavior.xml"/>
+  <include ros_pkg="koch2" path="behaviors/reusable/follow_behavior.xml"/>
 
   <BehaviorTree ID="GreetAndFollow">
     <Sequence>
@@ -51,13 +51,13 @@ values of `FollowBehavior` are fixed in its file; the subtree takes no ports.
 An orchestrator can create a runner itself and register it before it is configured:
 
 ```cpp
-#include "behavior_architecture/behavior_runner.hpp"
+#include "koch2/behavior_runner.hpp"
 
 // In the orchestrator's constructor
-auto runner = std::make_shared<behavior_architecture::BehaviorRunner>(
+auto runner = std::make_shared<koch2::BehaviorRunner>(
   blackboard_, "follow", "behaviors/reusable/follow_behavior.xml",
   std::vector<std::string>{"libsocial_bt_nodes_plugin.so"},
-  "behavior_architecture",   // package of the XML file
+  "koch2",   // package of the XML file
   50);                       // tick period in ms
 register_runner("follow", runner);
 ```
@@ -71,18 +71,18 @@ its executor.
 
 ```xml
 <!-- package.xml -->
-<exec_depend>behavior_architecture</exec_depend>
+<exec_depend>koch2</exec_depend>
 <exec_depend>social_bt_nodes</exec_depend>   <!-- the nodes of follow_behavior.xml -->
 ```
 
 The trees are data: using them needs no `find_package()` and no linking. Only an orchestrator or
-a BT node that includes headers of behavior_architecture needs `<depend>` and `find_package()`.
+a BT node that includes headers of koch2 needs `<depend>` and `find_package()`.
 
 ## Troubleshooting
 
-**The file is not found.** behavior_architecture is not built or not sourced, or the entry lacks
-`package_name: "behavior_architecture"` (the path is then resolved in the global package).
-`ls $(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/behaviors/reusable`
+**The file is not found.** koch2 is not built or not sourced, or the entry lacks
+`package_name: "koch2"` (the path is then resolved in the global package).
+`ls $(ros2 pkg prefix koch2)/share/koch2/behaviors/reusable`
 lists the installed trees.
 
 **A node of the tree is not recognised.** The plugin library that provides it is missing from

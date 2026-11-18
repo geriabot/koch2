@@ -24,12 +24,12 @@ def generate_launch_description():
     """Launch the mission executor with the restaurant configuration."""
     
     # Get package directory
-    pkg_dir = get_package_share_directory('behavior_architecture')
+    pkg_dir = get_package_share_directory('koch2')
     config_file = os.path.join(pkg_dir, 'config', 'restaurant_config.yaml')
     
     # Mission executor node
     mission_executor_node = Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='mission_executor',
         output='screen',
         emulate_tty=True,

@@ -1,8 +1,8 @@
 # An orchestrator in your own package
 
 This guide builds a package, `my_robot`, whose FSM and BT nodes run with `mission_executor`
-without changes to behavior_architecture. The orchestrator and the BT nodes are shared libraries
-of the package, and a YAML file ties them to the trees. Only the base of behavior_architecture is
+without changes to koch2. The orchestrator and the BT nodes are shared libraries
+of the package, and a YAML file ties them to the trees. Only the base of koch2 is
 needed ([README](../README.md#installation)). Every file below is complete; together they build
 and run on Jazzy and on Lyrical.
 
@@ -31,13 +31,13 @@ my_robot/
 <package format="3">
   <name>my_robot</name>
   <version>0.1.0</version>
-  <description>An orchestrator and BT nodes for behavior_architecture</description>
+  <description>An orchestrator and BT nodes for koch2</description>
   <maintainer email="you@example.com">you</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>behavior_architecture</depend>
+  <depend>koch2</depend>
   <depend>behaviortree_cpp</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
@@ -57,12 +57,12 @@ my_robot/
 #ifndef MY_ROBOT__MY_ORCHESTRATOR_HPP_
 #define MY_ROBOT__MY_ORCHESTRATOR_HPP_
 
-#include "behavior_architecture/base_orchestrator.hpp"
+#include "koch2/base_orchestrator.hpp"
 
 namespace my_robot
 {
 
-class MyOrchestrator : public behavior_architecture::BaseOrchestrator
+class MyOrchestrator : public koch2::BaseOrchestrator
 {
 public:
   explicit MyOrchestrator(BT::Blackboard::Ptr blackboard);
@@ -85,7 +85,7 @@ private:
 ```cpp
 // src/my_orchestrator.cpp
 #include "my_robot/my_orchestrator.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
+#include "koch2/orchestrator_factory.hpp"
 
 namespace my_robot
 {
@@ -127,7 +127,7 @@ void MyOrchestrator::go_to_state(int state)
 }
 
 // Registers the type "my_orchestrator" when mission_executor loads this library
-static behavior_architecture::OrchestratorRegistrar<MyOrchestrator> registrar("my_orchestrator");
+static koch2::OrchestratorRegistrar<MyOrchestrator> registrar("my_orchestrator");
 
 }  // namespace my_robot
 ```
@@ -227,15 +227,15 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
-find_package(behavior_architecture REQUIRED)
+find_package(koch2 REQUIRED)
 
 # The orchestrator, loaded by mission_executor from orchestrator_libraries
 add_library(${PROJECT_NAME}_orchestrator SHARED src/my_orchestrator.cpp)
 target_include_directories(${PROJECT_NAME}_orchestrator PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  ${behavior_architecture_INCLUDE_DIRS})
+  ${koch2_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME}_orchestrator
-  ${behavior_architecture_LIBRARIES}
+  ${koch2_LIBRARIES}
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
   behaviortree_cpp::behaviortree_cpp
@@ -265,7 +265,7 @@ library in `lib/` of the configuration's `package_name`, then by file name; the 
 BT plugin by file name through the dynamic loader, and a sourced workspace puts `lib/` on
 `LD_LIBRARY_PATH`. The form above links targets instead of calling
 `ament_target_dependencies()`, so it builds on both Jazzy and Lyrical. A package that also asks
-interpretation questions adds `behavior_architecture::interpretation` to the orchestrator's
+interpretation questions adds `koch2::interpretation` to the orchestrator's
 libraries ([INTERPRETATION.md](INTERPRETATION.md#linking)).
 
 ## 5. The trees
@@ -315,7 +315,7 @@ behaviors:
 ```
 
 The keys are described in the [README](../README.md#mission-configuration). To use a tree of
-behavior_architecture instead, the entry sets `package_name: "behavior_architecture"`, and
+koch2 instead, the entry sets `package_name: "koch2"`, and
 `plugin_libraries` lists the libraries its nodes need.
 
 ## 7. The launch file
@@ -331,7 +331,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     config = PathJoinSubstitution([FindPackageShare('my_robot'), 'config', 'my_mission.yaml'])
     return LaunchDescription([
-        Node(package='behavior_architecture', executable='mission_executor',
+        Node(package='koch2', executable='mission_executor',
              arguments=[config], output='screen', emulate_tty=True),
     ])
 ```
@@ -360,7 +360,7 @@ The log shows, in this order:
 [my_orchestrator]: State 3
 ```
 
-`ros2 run behavior_architecture mission_executor` without arguments does not list
+`ros2 run koch2 mission_executor` without arguments does not list
 `my_orchestrator`: it lists only the types compiled into the executable, and this one is
 registered when the configuration loads its library.
 

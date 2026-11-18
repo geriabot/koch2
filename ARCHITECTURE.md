@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the design of `behavior_architecture`: how the layers of behavioral
+This document describes the design of `koch2`: how the layers of behavioral
 control map onto the code, how the processes and nodes are built and scheduled, how behaviors
 are loaded, run and reported, and the design of the two optional components, the LLM
 orchestrators and interpretation. The [README](README.md) covers installation and use.
@@ -20,7 +20,7 @@ orchestrators and interpretation. The [README](README.md) covers installation an
 
 ## Layers
 
-![The layers of behavioral control and what implements each of them in this package](docs/media/behavior_architecture_layers.drawio.svg)
+![The layers of behavioral control and what implements each of them in this package](docs/media/koch2_layers.drawio.svg)
 
 Behavioral control is organized in layers, each with authority over the one below:
 
@@ -172,7 +172,7 @@ the library that contains it is loaded. Two kinds of types result:
   arguments, `mission_executor` lists them.
 - Types of an application's library, registered when the configuration loads the library from
   `orchestrator_libraries`. The library is loaded with `RTLD_GLOBAL`, so the BT plugin libraries
-  and the orchestrator share the symbols of `libbehavior_architecture`.
+  and the orchestrator share the symbols of `libkoch2`.
 
 The orchestrator thus lives in the application's package, with no `main`, and the framework's
 executable stays generic.
@@ -335,7 +335,7 @@ behind it that is external and replaceable. Two properties form its contract:
 The machinery of asking a model is generic and lives in the package; the questions belong to
 each system:
 
-| In `behavior_architecture` | In each system |
+| In `koch2` | In each system |
 |---|---|
 | The query interface: a named question, its context, optional images, a time budget; a validated answer, whether a fallback was used and why | The questions: their templates, answer fields, validation and fallbacks |
 | The server: prompt from a template, structured output, tolerant parsing, validation, retries, per-call limit and budget, fallback, logging and replay | What a system does with an answer |
@@ -353,17 +353,17 @@ questions with logic of their own, a Python module that the server loads) and as
 | Component | Language | Location |
 |---|---|---|
 | `Interpret.srv`, `CancelInterpretation.srv` | ROS 2 interfaces | `srv/` |
-| `interpretation_server` | Python | `behavior_interpretation/node.py` (ROS wrapper) and `server.py` (no ROS dependency) |
-| Questions, fields, templates, validation | Python | `behavior_interpretation/questions.py`, `fields.py`, `templates.py`, `validation.py` |
-| Interpreters | Python | `behavior_interpretation/interpreters/` (`rule.py`, `llm/`) |
-| Backends | Python | `behavior_interpretation/interpreters/llm/backends/` |
-| Call log | Python | `behavior_interpretation/call_log.py` |
-| `InterpretationClient` | C++ | `include/behavior_architecture/interpretation/`, `src/interpretation/` |
+| `interpretation_server` | Python | `koch2_interpretation/node.py` (ROS wrapper) and `server.py` (no ROS dependency) |
+| Questions, fields, templates, validation | Python | `koch2_interpretation/questions.py`, `fields.py`, `templates.py`, `validation.py` |
+| Interpreters | Python | `koch2_interpretation/interpreters/` (`rule.py`, `llm/`) |
+| Backends | Python | `koch2_interpretation/interpreters/llm/backends/` |
+| Call log | Python | `koch2_interpretation/call_log.py` |
+| `InterpretationClient` | C++ | `include/koch2/interpretation/`, `src/interpretation/` |
 | `Interpret`, `InterpretationResult` | C++ (BT plugin) | `src/interpretation/interpret_bt_nodes.cpp` |
 
-The Python package is `behavior_interpretation`, not `behavior_architecture`, because the
-generated Python module of the interface is already `behavior_architecture`
-(`behavior_architecture.srv`).
+The Python package is `koch2_interpretation`, not `koch2`, because the
+generated Python module of the interface is already `koch2`
+(`koch2.srv`).
 
 ### One call
 
@@ -484,7 +484,7 @@ decision.
 
 Generating an interface makes rosidl add its libraries, targets, include directories and
 dependencies to the package's default CMake variables, so every package that finds
-`behavior_architecture` would link the interface's typesupport libraries, and the client if it
+`koch2` would link the interface's typesupport libraries, and the client if it
 were exported the same way. Since interpretation is not part of the base, the package keeps it
 out of those variables:
 
@@ -497,13 +497,13 @@ out of those variables:
   config file (`cmake/default_variables-extras.cmake.in`), so that nothing that rosidl's config
   files add to them, in any version of rosidl, reaches a package that does not opt in.
 - `cmake/interpretation-extras.cmake.in` defines the imported targets and the variables
-  `behavior_architecture_INTERPRETATION_TARGETS`, `..._INTERPRETATION_INTERFACE_TARGETS` and
+  `koch2_INTERPRETATION_TARGETS`, `..._INTERPRETATION_INTERFACE_TARGETS` and
   `..._INTERPRETATION_FOUND`; `cmake/interpretation_dependencies-extras.cmake.in` finds the
   dependencies of interpretation after the default variables are computed.
 
-The interface is generated as the CMake target `behavior_architecture_interfaces`, since
-`behavior_architecture` is the base library's target; its libraries are given the file names
-that the typesupport dispatch expects for the package (`libbehavior_architecture__rosidl_*.so`).
+The interface is generated as the CMake target `koch2_interfaces`, since
+`koch2` is the base library's target; its libraries are given the file names
+that the typesupport dispatch expects for the package (`libkoch2__rosidl_*.so`).
 A package that does not name interpretation gets the same link line as without it;
 `test/check_consumer_variables.sh` prints the variables that such a package receives and compares
 them with those of a build without interpretation. The BT nodes' library is loaded by name and is
@@ -515,8 +515,8 @@ The design record, with the requirements that shaped it, is
 ## Source layout
 
 ```
-behavior_architecture/
-├── include/behavior_architecture/
+koch2/
+├── include/koch2/
 │   ├── base_orchestrator.hpp, behavior_runner.hpp, orchestrator_factory.hpp
 │   ├── behavior_config.hpp, config_parser.hpp     the YAML configuration
 │   ├── llm_plan_orchestrator.hpp, mcp_llm_plan_orchestrator.hpp, llm_bt_orchestrator.hpp
@@ -524,11 +524,11 @@ behavior_architecture/
 │   ├── examples/                                   simple and restaurant orchestrators
 │   └── interpretation/                             InterpretationClient, BT nodes
 ├── src/
-│   ├── behavior_architecture/                      the base library
+│   ├── koch2/                      the base library
 │   ├── examples/                                   example orchestrators and their main
 │   ├── interpretation/                             client and BT nodes
 │   └── mission_executor.cpp, start_mission.cpp, llm_*.cpp, test_plan_*.cpp, static_tf_publisher.cpp
-├── behavior_interpretation/                        the interpretation server (Python)
+├── koch2_interpretation/                        the interpretation server (Python)
 ├── srv/Interpret.srv
 ├── behaviors/                                      shipped trees (reusable/, examples/)
 ├── config/                                         example configurations; interpretation/

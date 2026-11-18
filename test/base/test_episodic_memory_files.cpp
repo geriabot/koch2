@@ -20,17 +20,17 @@
 
 #include <unistd.h>
 
-#include "behavior_architecture/episodic_memory_files.hpp"
+#include "koch2/episodic_memory_files.hpp"
 
 namespace fs = std::filesystem;
-using behavior_architecture::LEGACY_PLAN_SUCCESS_MEMORY_FILE;
-using behavior_architecture::PLAN_SUCCESS_MEMORY_FILE;
-using behavior_architecture::readable_memory_file;
+using koch2::LEGACY_PLAN_SUCCESS_MEMORY_FILE;
+using koch2::PLAN_SUCCESS_MEMORY_FILE;
+using koch2::readable_memory_file;
 
 TEST(EpisodicMemoryFiles, ReadsTheFormerNameOnlyWhenTheFileIsMissing)
 {
   const auto dir = fs::temp_directory_path() /
-    ("behavior_architecture_memory_" + std::to_string(::getpid()));
+    ("koch2_memory_" + std::to_string(::getpid()));
   fs::create_directories(dir);
   const auto file = dir / PLAN_SUCCESS_MEMORY_FILE;
   const auto legacy = dir / LEGACY_PLAN_SUCCESS_MEMORY_FILE;

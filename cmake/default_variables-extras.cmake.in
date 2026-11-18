@@ -4,26 +4,26 @@
 # The last config file of the package. rosidl's config files, included before it, may add the
 # generated interface to the default variables, depending on the version of rosidl (some builds
 # of Jazzy's rosidl_generator_py add the Python bindings library to
-# behavior_architecture_TARGETS). This file restores the default variables as they were right
+# koch2_TARGETS). This file restores the default variables as they were right
 # after the config files of the base's exports (default_variables_snapshot-extras.cmake), so
 # that a package that does not ask for interpretation receives the same variables as without
 # interpretation.
 
-if(NOT _behavior_architecture_default_variables_kept)
-  message(FATAL_ERROR "behavior_architecture: the default variables were not kept "
+if(NOT _koch2_default_variables_kept)
+  message(FATAL_ERROR "koch2: the default variables were not kept "
     "(default_variables_snapshot-extras.cmake was not included)")
 endif()
 
-foreach(_behavior_architecture_var TARGETS LIBRARIES INCLUDE_DIRS LIBRARY_DIRS DEPENDENCIES
+foreach(_koch2_var TARGETS LIBRARIES INCLUDE_DIRS LIBRARY_DIRS DEPENDENCIES
     RECURSIVE_DEPENDENCIES DEFINITIONS LINK_FLAGS)
-  if(DEFINED _behavior_architecture_default_${_behavior_architecture_var})
-    set(behavior_architecture_${_behavior_architecture_var}
-      "${_behavior_architecture_default_${_behavior_architecture_var}}")
+  if(DEFINED _koch2_default_${_koch2_var})
+    set(koch2_${_koch2_var}
+      "${_koch2_default_${_koch2_var}}")
   else()
-    unset(behavior_architecture_${_behavior_architecture_var})
+    unset(koch2_${_koch2_var})
   endif()
-  unset(_behavior_architecture_default_${_behavior_architecture_var})
+  unset(_koch2_default_${_koch2_var})
 endforeach()
 
-unset(_behavior_architecture_default_variables_kept)
-unset(_behavior_architecture_var)
+unset(_koch2_default_variables_kept)
+unset(_koch2_var)

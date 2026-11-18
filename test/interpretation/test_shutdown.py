@@ -23,14 +23,14 @@ import time
 import pytest
 
 pytest.importorskip('rclpy')
-pytest.importorskip('behavior_architecture.srv')
+pytest.importorskip('koch2.srv')
 
 
 def start_server(tmp_path):
     questions = tmp_path / 'questions.yaml'
     questions.write_text('questions:\n  q:\n    prompt: "{text}"\n    fields: ["int:id"]\n')
     process = subprocess.Popen(
-        [sys.executable, '-c', 'import sys; from behavior_interpretation.node import main; '
+        [sys.executable, '-c', 'import sys; from koch2_interpretation.node import main; '
          'sys.exit(main())',
          '--ros-args', '-r', '__ns:=/shutdown_test', '-p', f'questions_file:={questions}',
          '-p', 'routes.text.backend:=fake'],

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/mcp_llm_plan_orchestrator.hpp"
-#include "behavior_architecture/episodic_memory_files.hpp"
+#include "koch2/mcp_llm_plan_orchestrator.hpp"
+#include "koch2/episodic_memory_files.hpp"
 
-#include "behavior_architecture/orchestrator_factory.hpp"
+#include "koch2/orchestrator_factory.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -23,7 +23,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace behavior_architecture
+namespace koch2
 {
 
 // Register MCP orchestrator aliases for A/B tests while keeping llm unchanged.
@@ -996,4 +996,4 @@ void MCPLLMPlanOrchestrator::load_bt_case_base()
 	}
 }
 
-}  // namespace behavior_architecture
+}  // namespace koch2

@@ -18,9 +18,9 @@ import threading
 import time
 from types import SimpleNamespace
 
-from behavior_interpretation import InterpretationServer
-from behavior_interpretation.call_log import read_calls
-from behavior_interpretation.interpreters.llm.backends import FakeBackend
+from koch2_interpretation import InterpretationServer
+from koch2_interpretation.call_log import read_calls
+from koch2_interpretation.interpreters.llm.backends import FakeBackend
 
 QUESTION = {'prompt': 'p', 'fields': ['int:id'], 'max_retries': 3, 'fallback': -1}
 

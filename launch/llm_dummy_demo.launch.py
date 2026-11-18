@@ -99,7 +99,7 @@ def launch_setup(context, *args, **kwargs):
         executor_args.append('--save-exec')
     executor_args.extend(['--replan-active', replan_active])
     nodes.append(Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='mission_executor',
         name='mission_executor',
         output='screen',
@@ -111,7 +111,7 @@ def launch_setup(context, *args, **kwargs):
     nodes.append(TimerAction(
         period=3.0,
         actions=[Node(
-            package='behavior_architecture',
+            package='koch2',
             executable='start_mission',
             name='start_mission',
             output='screen',
@@ -142,7 +142,7 @@ def generate_launch_description():
     Set launch_llm_nodes:=false when llm_planner and llm_bt_builder are
     already running in another terminal / launch file.
     """
-    pkg_dir = get_package_share_directory('behavior_architecture')
+    pkg_dir = get_package_share_directory('koch2')
     default_config = os.path.join(pkg_dir, 'config', 'llm_config.yaml')
     default_skills = os.path.join(pkg_dir, 'config', 'skills.yaml')
 

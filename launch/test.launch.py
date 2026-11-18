@@ -13,7 +13,7 @@ def launch_setup(context, *args, **kwargs):
 
     nodes = [
         Node(
-            package='behavior_architecture',
+            package='koch2',
             executable='test_plan_executor',
             output='screen',
             emulate_tty=True,

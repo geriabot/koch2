@@ -15,7 +15,7 @@
 """
 Launch an interpretation server (one per system, in the system's namespace).
 
-ros2 launch behavior_architecture interpretation.launch.py namespace:=my_system \
+ros2 launch koch2 interpretation.launch.py namespace:=my_system \
     params_file:=/path/to/interpretation_params.yaml
 
 params_file is a ROS parameters file for the node `interpretation_server` (its questions_file,
@@ -47,7 +47,7 @@ def _server(context):
     if overrides:
         parameters.append(overrides)
     return [Node(
-        package='behavior_architecture',
+        package='koch2',
         executable='interpretation_server',
         name='interpretation_server',
         namespace=value['namespace'],
@@ -58,7 +58,7 @@ def _server(context):
 
 
 def generate_launch_description():
-    example = os.path.join(get_package_share_directory('behavior_architecture'), 'config',
+    example = os.path.join(get_package_share_directory('koch2'), 'config',
                            'interpretation', 'example_params.yaml')
     return LaunchDescription([
         DeclareLaunchArgument(

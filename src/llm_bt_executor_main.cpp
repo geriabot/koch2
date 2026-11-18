@@ -8,7 +8,7 @@
 #include "rclcpp/executors/multi_threaded_executor.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include "behavior_architecture/llm_bt_orchestrator.hpp"
+#include "koch2/llm_bt_orchestrator.hpp"
 
 namespace
 {
@@ -16,7 +16,7 @@ namespace
 void print_usage()
 {
   std::cerr
-    << "Usage: ros2 run behavior_architecture llm_bt_executor -- --objective <file> [options]\n"
+    << "Usage: ros2 run koch2 llm_bt_executor -- --objective <file> [options]\n"
     << "Options:\n"
     << "  --capabilities <file>          Capabilities YAML file.\n"
     << "  --plugin-library <file>        Repeatable BT plugin library.\n"
@@ -145,7 +145,7 @@ int main(int argc, char ** argv)
     blackboard->set("llm_blackboard_seed_path", blackboard_seed_path);
   }
 
-  auto orchestrator = std::make_shared<behavior_architecture::LLMBTOrchestrator>(blackboard);
+  auto orchestrator = std::make_shared<koch2::LLMBTOrchestrator>(blackboard);
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
   orchestrator->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 

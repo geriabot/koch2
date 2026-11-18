@@ -20,20 +20,20 @@
 #include "ament_index_cpp/get_package_prefix.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
-#include "behavior_architecture/config_parser.hpp"
-#include "behavior_architecture/behavior_runner.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
-#ifdef BEHAVIOR_ARCHITECTURE_WITH_LLM
-#include "behavior_architecture/llm_plan_orchestrator.hpp"
+#include "koch2/config_parser.hpp"
+#include "koch2/behavior_runner.hpp"
+#include "koch2/orchestrator_factory.hpp"
+#ifdef KOCH2_WITH_LLM
+#include "koch2/llm_plan_orchestrator.hpp"
 #endif
 
 // Include all orchestrator implementations to trigger registration
-#include "behavior_architecture/examples/restaurant_orchestrator.hpp"
-#include "behavior_architecture/examples/simple_orchestrator.hpp"
+#include "koch2/examples/restaurant_orchestrator.hpp"
+#include "koch2/examples/simple_orchestrator.hpp"
 
-using behavior_architecture::ActionConfig;
-using behavior_architecture::parse_config;
-using behavior_architecture::setup_blackboard_from_config;
+using koch2::ActionConfig;
+using koch2::parse_config;
+using koch2::setup_blackboard_from_config;
 
 /**
  * @brief Resolve file path - handles both absolute and package-relative paths
@@ -120,7 +120,7 @@ int main(int argc, char * argv[])
     RCLCPP_INFO(
       rclcpp::get_logger("mission_executor"),
       "Available orchestrator types:");
-    for (const auto & type : behavior_architecture::OrchestratorFactory::get_registered_types()) {
+    for (const auto & type : koch2::OrchestratorFactory::get_registered_types()) {
       RCLCPP_INFO(rclcpp::get_logger("mission_executor"), "  - %s", type.c_str());
     }
     return 1;
@@ -230,7 +230,7 @@ int main(int argc, char * argv[])
     rclcpp::get_logger("mission_executor"),
     "Creating orchestrator of type: %s", config.orchestrator_type.c_str());
 
-  auto orchestrator = behavior_architecture::OrchestratorFactory::create_orchestrator(
+  auto orchestrator = koch2::OrchestratorFactory::create_orchestrator(
     config.orchestrator_type,
     blackboard);
   
@@ -238,7 +238,7 @@ int main(int argc, char * argv[])
     RCLCPP_ERROR(
       rclcpp::get_logger("mission_executor"),
       "Failed to create orchestrator. Available types:");
-    for (const auto & type : behavior_architecture::OrchestratorFactory::get_registered_types()) {
+    for (const auto & type : koch2::OrchestratorFactory::get_registered_types()) {
       RCLCPP_ERROR(rclcpp::get_logger("mission_executor"), "  - %s", type.c_str());
     }
     return 1;

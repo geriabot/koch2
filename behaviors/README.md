@@ -1,6 +1,6 @@
 # Behavior trees shipped with the package
 
-The trees of this directory are installed to `share/behavior_architecture/behaviors/`. They are
+The trees of this directory are installed to `share/koch2/behaviors/`. They are
 BehaviorTree.CPP v4 files (`BTCPP_format="4"`).
 
 ```

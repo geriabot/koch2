@@ -1,0 +1,146 @@
+// Copyright 2025 Rodrigo Pérez-Rodríguez
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef KOCH2__BASE_ORCHESTRATOR_HPP_
+#define KOCH2__BASE_ORCHESTRATOR_HPP_
+
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "behaviortree_cpp/behavior_tree.h"
+#include "koch2/behavior_config.hpp"
+#include "koch2/behavior_runner.hpp"
+
+namespace koch2
+{
+
+using namespace std::chrono_literals;
+using std::placeholders::_1;
+
+/**
+ * @brief Base class for behavior orchestrators using FSM + BehaviorTree architecture
+ * 
+ * This class provides a generic framework for implementing behavior orchestrators that:
+ * - Use a Finite State Machine (FSM) for high-level behavior control
+ * - Activate/deactivate BehaviorTree nodes based on FSM state
+ * - Use cascade lifecycle management for coordinating multiple BT nodes
+ * 
+ * Derived classes should:
+ * 1. Define their own State enum
+ * 2. Override control_cycle() to implement FSM logic
+ * 3. Override go_to_state() to handle state transitions
+ * 4. Use add_activation()/remove_activation()/clear_activation() to control BT nodes
+ */
+class BaseOrchestrator : public rclcpp_lifecycle::LifecycleNode
+{
+public:
+  /**
+   * @brief Constructor
+   * @param node_name Name of the orchestrator node
+   * @param blackboard Shared blackboard for BehaviorTree communication
+   */
+  explicit BaseOrchestrator(
+    const std::string & node_name,
+    BT::Blackboard::Ptr blackboard);
+
+  virtual ~BaseOrchestrator() = default;
+
+  void register_runner(const std::string & name, BehaviorRunner::SharedPtr runner);
+  std::vector<BehaviorRunner::SharedPtr> get_runners() const;
+
+protected:
+  /**
+   * @brief Main control loop - must be implemented by derived classes
+   * 
+   * This method implements the FSM logic, checking current state and
+   * transitioning between states based on behavior tree status and other conditions.
+   */
+  virtual void control_cycle() = 0;
+
+  /**
+   * @brief Handle state transitions - must be implemented by derived classes
+   * 
+   * This method is called when transitioning to a new state. It should:
+   * - Update internal state variable
+   * - Activate/deactivate appropriate BT nodes
+   * - Log state transition
+   * 
+   * @param state The new state to transition to (as int for generic handling)
+   */
+  virtual void go_to_state(int state) = 0;
+
+  /**
+   * @brief Activate a runner: it builds its tree and starts ticking it
+   *
+   * If the runner cannot build its tree, its activation fails (the reason is logged and is in
+   * the runner's activation_error()), the runner stays inactive, and the next call to
+   * check_behavior_finished() returns true with last_status_ "FAILURE".
+   * @return true if the runner is active
+   */
+  bool activate_runner(const std::string & name);
+  void deactivate_runner(const std::string & name);
+  void deactivate_all_runners();
+
+  /**
+   * @brief Check if the currently active behavior tree has finished
+   * @return true if status changed from last check, false otherwise
+   */
+  bool check_behavior_finished();
+
+  /**
+   * @brief Callback for behavior status updates from BT nodes
+   * @param msg Status message from BT node
+   */
+  void status_callback(std_msgs::msg::String::UniquePtr msg);
+
+  // Lifecycle callbacks
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_configure(const rclcpp_lifecycle::State & previous_state) override;
+
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_activate(const rclcpp_lifecycle::State & previous_state) override;
+
+  rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+  on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
+
+  // Shared resources
+  BT::Blackboard::Ptr blackboard_;
+  rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr status_sub_;
+  
+  std::string last_status_;
+  std::string status_received_;
+  
+  int control_cycle_rate_ms_;  // Control cycle period in milliseconds
+
+  std::map<std::string, BehaviorRunner::SharedPtr> runners_;
+  std::set<std::string> active_runners_;
+
+private:
+  bool started_;
+  // The last activate_runner() failed, and check_behavior_finished() has not reported it yet
+  bool activation_failed_ {false};
+  // That failure was reported: the next activation clears the status, as DEACTIVATED does
+  bool clear_status_on_activation_ {false};
+};
+
+}  // namespace koch2
+
+#endif  // KOCH2__BASE_ORCHESTRATOR_HPP_

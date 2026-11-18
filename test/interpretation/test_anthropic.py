@@ -16,9 +16,9 @@
 
 import json
 
-from behavior_interpretation.interpreters.llm.backends import BackendError
-from behavior_interpretation.interpreters.llm.backends import create_backend
-from behavior_interpretation.interpreters.llm.backends import Limits
+from koch2_interpretation.interpreters.llm.backends import BackendError
+from koch2_interpretation.interpreters.llm.backends import create_backend
+from koch2_interpretation.interpreters.llm.backends import Limits
 import pytest
 from test_backends import _image
 from test_backends import SCHEMA

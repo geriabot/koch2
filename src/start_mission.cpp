@@ -80,7 +80,7 @@ int main(int argc, char ** argv)
   if (mission_file.empty()) {
     RCLCPP_ERROR(node->get_logger(), "Parameter 'mission_file' is required");
     RCLCPP_ERROR(node->get_logger(),
-      "Usage: ros2 run behavior_architecture start_mission "
+      "Usage: ros2 run koch2 start_mission "
       "--ros-args -p mission_file:=/path/to/goal.yaml [-p skills_file:=/path/to/skills.yaml]");
     rclcpp::shutdown();
     return 1;

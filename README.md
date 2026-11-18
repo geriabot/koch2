@@ -1,6 +1,6 @@
-# behavior_architecture
+# koch2
 
-`behavior_architecture` is a ROS 2 framework for the behavioral control of a robot. A finite
+`koch2` is a ROS 2 framework for the behavioral control of a robot. A finite
 state machine (FSM), the *orchestrator*, decides which behavior runs; each behavior is a
 BehaviorTree.CPP tree executed by its own *behavior runner*. A generic executable,
 `mission_executor`, builds the orchestrator and its runners from a YAML file, so that an
@@ -38,12 +38,12 @@ License: Apache-2.0.
 
 ## How it works
 
-![The layers of behavioral control and what implements each of them in this package](docs/media/behavior_architecture_layers.drawio.svg)
+![The layers of behavioral control and what implements each of them in this package](docs/media/koch2_layers.drawio.svg)
 
 The figure shows the layers of behavioral control, from deliberation down to the hardware, and
 the element of the package that implements each of them. Each layer has authority over the one
 below it. The figure is an editable draw.io file
-([docs/media/behavior_architecture_layers.drawio.svg](docs/media/behavior_architecture_layers.drawio.svg)).
+([docs/media/koch2_layers.drawio.svg](docs/media/koch2_layers.drawio.svg)).
 
 **Deliberation** decides which missions to pursue. The package does not provide it.
 
@@ -83,8 +83,8 @@ The package is built from source with colcon. The table lists what each part req
 
 | Part | Provides | Source dependencies |
 |---|---|---|
-| Base | `libbehavior_architecture` (`BaseOrchestrator`, `BehaviorRunner`, `OrchestratorFactory`), `mission_executor` with the example types `simple` and `restaurant`, `simple_example`, `restaurant_example`, `test_plan_executor`, `static_tf_publisher` | none (`thirdparty.repos` is empty) |
-| Interpretation | the service `Interpret`, `interpretation_server`, `libbehavior_architecture_interpretation` (`InterpretationClient`) and the BT nodes `Interpret` and `InterpretationResult`; always built with the base, linked only by the packages that ask for it | none |
+| Base | `libkoch2` (`BaseOrchestrator`, `BehaviorRunner`, `OrchestratorFactory`), `mission_executor` with the example types `simple` and `restaurant`, `simple_example`, `restaurant_example`, `test_plan_executor`, `static_tf_publisher` | none (`thirdparty.repos` is empty) |
+| Interpretation | the service `Interpret`, `interpretation_server`, `libkoch2_interpretation` (`InterpretationClient`) and the BT nodes `Interpret` and `InterpretationResult`; always built with the base, linked only by the packages that ask for it | none |
 | LLM orchestrators | types `llm` and `mcp` in `mission_executor`; `llm_plan_executor`, `llm_bt_executor`, `start_mission` | `llm.repos`: [llm_bt_builder](https://github.com/rodperex/llm_bt_builder), [llm_planner](https://github.com/rodperex/llm_planner) |
 | Example BT nodes | the nodes used by `config/simple_config.yaml`, `config/restaurant_config.yaml` and `behaviors/reusable/follow_behavior.xml` | `examples.repos`: [social_bt_nodes](https://github.com/rodperex/social_bt_nodes) |
 
@@ -96,7 +96,7 @@ sensor_msgs, tf2_ros, rclpy) is a ROS 2 binary package that rosdep installs.
 ```bash
 source /opt/ros/jazzy/setup.bash          # or /opt/ros/lyrical/setup.bash
 mkdir -p ~/ws/src && cd ~/ws/src
-git clone https://github.com/geriabot/behavior_architecture.git    # Lyrical: add -b lyrical
+git clone https://github.com/geriabot/koch2.git    # Lyrical: add -b lyrical
 cd ~/ws
 rosdep install --from-paths src --ignore-src -y \
   --skip-keys "llm_planner_interfaces llm_bt_builder"
@@ -112,14 +112,14 @@ Run without arguments, `mission_executor` prints its usage and the orchestrator 
 into it (`restaurant` and `simple` for the base):
 
 ```bash
-ros2 run behavior_architecture mission_executor
+ros2 run koch2 mission_executor
 ```
 
 ### LLM orchestrators
 
 ```bash
 cd ~/ws
-vcs import src < src/behavior_architecture/llm.repos
+vcs import src < src/koch2/llm.repos
 rosdep install --from-paths src --ignore-src -y
 colcon build --symlink-install
 ```
@@ -127,12 +127,12 @@ colcon build --symlink-install
 CMake reports which variant it builds:
 
 ```
--- behavior_architecture: building the LLM orchestrators (llm, mcp, llm_bt)
--- behavior_architecture: llm_planner_interfaces or llm_bt_builder not found: the LLM orchestrators ...
+-- koch2: building the LLM orchestrators (llm, mcp, llm_bt)
+-- koch2: llm_planner_interfaces or llm_bt_builder not found: the LLM orchestrators ...
 ```
 
 When the two packages are added to a workspace that has already built the base, rebuild with
-`colcon build --cmake-clean-cache` (or remove `build/behavior_architecture`) so that CMake looks
+`colcon build --cmake-clean-cache` (or remove `build/koch2`) so that CMake looks
 for them again. `mission_executor` then also lists `llm`, `mcp`, `mcp_llm` and
 `mcp_llm_plan_orchestrator`.
 
@@ -140,7 +140,7 @@ for them again. `mission_executor` then also lists `llm`, `mcp`, `mcp_llm` and
 
 ```bash
 cd ~/ws
-vcs import src < src/behavior_architecture/examples.repos
+vcs import src < src/koch2/examples.repos
 rosdep install --from-paths src --ignore-src -y
 colcon build --symlink-install
 ```
@@ -196,7 +196,7 @@ behaviors:
     behavior_file: "$PWD/farewell.xml"
 EOF
 
-ros2 run behavior_architecture mission_executor mission.yaml
+ros2 run koch2 mission_executor mission.yaml
 ```
 
 The log shows the orchestrator entering `STATE_1`, the runner `state1_runner` building its tree
@@ -209,8 +209,8 @@ Ctrl-C.
 With the example BT nodes built, the two shipped configurations run with:
 
 ```bash
-ros2 launch behavior_architecture mission_executor_simple.launch.py
-ros2 launch behavior_architecture mission_executor_restaurant.launch.py
+ros2 launch koch2 mission_executor_simple.launch.py
+ros2 launch koch2 mission_executor_restaurant.launch.py
 ```
 
 `simple` runs `behaviors/examples/state1.xml` and `state2.xml`, whose `Speak` nodes call the
@@ -222,8 +222,8 @@ service `/tts_service`. `restaurant` runs `behaviors/reusable/follow_behavior.xm
 Any configuration runs with either of:
 
 ```bash
-ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/mission.yaml
-ros2 run behavior_architecture mission_executor /path/to/mission.yaml
+ros2 launch koch2 mission_executor.launch.py config_file:=/path/to/mission.yaml
+ros2 run koch2 mission_executor /path/to/mission.yaml
 ```
 
 ## Mission configuration
@@ -245,14 +245,14 @@ behaviors:                              # one behavior runner each (required)
     control_period_ms: 50
   - name: "follow"
     behavior_file: "behaviors/reusable/follow_behavior.xml"
-    package_name: "behavior_architecture"   # this file comes from another package
+    package_name: "koch2"   # this file comes from another package
 ```
 
 | Key | Default | Meaning |
 |---|---|---|
 | `orchestrator_type` | required | A type registered with `OrchestratorRegistrar`. The aliases `mcp_llm` and `mcp_llm_plan_orchestrator` are read as `mcp`. |
 | `node_name` | `bt_node` | Name of the `rclcpp::Node` that `mission_executor` creates and stores on the blackboard under the key `node`. |
-| `package_name` | `behavior_architecture` | Package whose share directory resolves relative `behavior_file` paths, and whose install prefix holds the `orchestrator_libraries`. |
+| `package_name` | `koch2` | Package whose share directory resolves relative `behavior_file` paths, and whose install prefix holds the `orchestrator_libraries`. |
 | `orchestrator_libraries` | `[]` | Libraries loaded with `dlopen` before the orchestrator is created. Each is looked up as `<prefix of package_name>/lib/<file>`, then by file name through the dynamic loader (`LD_LIBRARY_PATH`). |
 | `plugin_libraries` | `[]` | BehaviorTree.CPP plugin libraries (`BT_REGISTER_NODES`) that every runner loads. BehaviorTree.CPP loads each by the given name or path through the dynamic loader; a sourced workspace puts the `lib/` directory of each package on `LD_LIBRARY_PATH`. |
 | `behaviors` | required | The behavior runners. |
@@ -267,7 +267,7 @@ LLM types are listed in [LLM orchestrators](#llm-orchestrators-optional); `bt_no
 present in the example configurations, is used only by them.
 
 The trees shipped with the package (`behaviors/reusable/`) can be used from any package by
-setting `package_name: "behavior_architecture"` on the entry; see
+setting `package_name: "koch2"` on the entry; see
 [behaviors/README.md](behaviors/README.md).
 
 ### Node parameters
@@ -294,24 +294,24 @@ state1_runner:
 ```
 
 ```bash
-ros2 run behavior_architecture mission_executor mission.yaml --ros-args --params-file params.yaml
+ros2 run koch2 mission_executor mission.yaml --ros-args --params-file params.yaml
 ```
 
 ## Writing an orchestrator
 
-An orchestrator is a subclass of `behavior_architecture::BaseOrchestrator` in a shared library of
+An orchestrator is a subclass of `koch2::BaseOrchestrator` in a shared library of
 the application's package. `mission_executor` loads the library (`orchestrator_libraries`), and a
 static `OrchestratorRegistrar` in the library registers the type under a name
 (`orchestrator_type`).
 
 ```cpp
-#include "behavior_architecture/base_orchestrator.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
+#include "koch2/base_orchestrator.hpp"
+#include "koch2/orchestrator_factory.hpp"
 
 namespace my_robot
 {
 
-class MyOrchestrator : public behavior_architecture::BaseOrchestrator
+class MyOrchestrator : public koch2::BaseOrchestrator
 {
 public:
   explicit MyOrchestrator(BT::Blackboard::Ptr blackboard)
@@ -354,7 +354,7 @@ private:
 };
 
 // Registers the type "my_orchestrator" when the library is loaded
-static behavior_architecture::OrchestratorRegistrar<MyOrchestrator> registrar("my_orchestrator");
+static koch2::OrchestratorRegistrar<MyOrchestrator> registrar("my_orchestrator");
 
 }  // namespace my_robot
 ```
@@ -408,14 +408,14 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
-find_package(behavior_architecture REQUIRED)
+find_package(koch2 REQUIRED)
 
 add_library(${PROJECT_NAME}_orchestrator SHARED src/my_orchestrator.cpp)
 target_include_directories(${PROJECT_NAME}_orchestrator PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  ${behavior_architecture_INCLUDE_DIRS})
+  ${koch2_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME}_orchestrator
-  ${behavior_architecture_LIBRARIES}
+  ${koch2_LIBRARIES}
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
   behaviortree_cpp::behaviortree_cpp
@@ -516,7 +516,7 @@ into the workspace.
 
 ```bash
 # The planner and the tree builder too (launch_llm_nodes:=false when they already run)
-ros2 launch behavior_architecture llm_dummy_demo.launch.py launch_llm_nodes:=true
+ros2 launch koch2 llm_dummy_demo.launch.py launch_llm_nodes:=true
 ```
 
 The launch file starts `mission_executor` with the configuration and, after 3 s,
@@ -524,9 +524,9 @@ The launch file starts `mission_executor` with the configuration and, after 3 s,
 `skills_file`. A mission is sent to a running orchestrator with:
 
 ```bash
-ros2 run behavior_architecture start_mission --ros-args \
-  -p mission_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/llm_config.yaml \
-  -p skills_file:=$(ros2 pkg prefix behavior_architecture)/share/behavior_architecture/config/skills.yaml
+ros2 run koch2 start_mission --ros-args \
+  -p mission_file:=$(ros2 pkg prefix koch2)/share/koch2/config/llm_config.yaml \
+  -p skills_file:=$(ros2 pkg prefix koch2)/share/koch2/config/skills.yaml
 ```
 
 A mission file has `goal` (required) and optionally `context`, `useful_info`, `preconditions`,
@@ -551,9 +551,9 @@ a worked example. In summary:
 |---|---|
 | `srv/Interpret.srv` | The request: `question`, `request_id`, `context` (a JSON object), `text`, `images`, `budget_s` (0: no budget), `variant`, `max_tokens` (0: the question's). The response: `success`, `answer` (a JSON object), `source` (the interpreter that answered, `fallback` or `invalid`), `fallback_reason`, `message`. |
 | `srv/CancelInterpretation.srv` | Cancels the calls in progress of a `request_id` (for example when a dialogue ends): they return at once with source `invalid` and reason `cancelled`. |
-| `interpretation_server` | The server (Python package `behavior_interpretation`). Each question names a chain of *interpreters*: `llm` (a model, through a *route* that names a *backend*: `ollama`, `openai`, `gemini`, `anthropic`, `llama_ros`, `fake`, `recorded`) and `rule` (deterministic code). Every call can be written to a call log, which the `recorded` backend replays. |
-| `InterpretationClient` | A non-blocking C++ client that an orchestrator owns (`libbehavior_architecture_interpretation`). |
-| `Interpret`, `InterpretationResult` | BT nodes (`libbehavior_architecture_interpretation_bt_nodes.so`) that ask without blocking the tree. |
+| `interpretation_server` | The server (Python package `koch2_interpretation`). Each question names a chain of *interpreters*: `llm` (a model, through a *route* that names a *backend*: `ollama`, `openai`, `gemini`, `anthropic`, `llama_ros`, `fake`, `recorded`) and `rule` (deterministic code). Every call can be written to a call log, which the `recorded` backend replays. |
+| `InterpretationClient` | A non-blocking C++ client that an orchestrator owns (`libkoch2_interpretation`). |
+| `Interpret`, `InterpretationResult` | BT nodes (`libkoch2_interpretation_bt_nodes.so`) that ask without blocking the tree. |
 | `launch/interpretation.launch.py` | Launches a server with its parameters file, in a namespace. |
 
 ### Launching a server
@@ -564,13 +564,13 @@ namespace of their node.
 
 ```bash
 # The example: two questions answered by the fake backend, without any model server
-ros2 launch behavior_architecture interpretation.launch.py
+ros2 launch koch2 interpretation.launch.py
 
 # A server of your own
-ros2 launch behavior_architecture interpretation.launch.py params_file:=/path/to/params.yaml
+ros2 launch koch2 interpretation.launch.py params_file:=/path/to/params.yaml
 
 # With mission_executor (interpretation is false by default), both in the namespace my_robot
-ros2 launch behavior_architecture mission_executor.launch.py config_file:=/path/to/mission.yaml \
+ros2 launch koch2 mission_executor.launch.py config_file:=/path/to/mission.yaml \
   namespace:=my_robot interpretation:=true interpretation_params_file:=/path/to/params.yaml
 ```
 
@@ -613,11 +613,11 @@ templates:
 ### Asking from an orchestrator
 
 ```cpp
-#include "behavior_architecture/interpretation/interpretation_client.hpp"
+#include "koch2/interpretation/interpretation_client.hpp"
 
-using behavior_architecture::interpretation::InterpretationClient;
-using behavior_architecture::interpretation::InterpretationHandle;
-using behavior_architecture::interpretation::OfferedBehavior;
+using koch2::interpretation::InterpretationClient;
+using koch2::interpretation::InterpretationHandle;
+using koch2::interpretation::OfferedBehavior;
 
 // Members of the orchestrator
 std::unique_ptr<InterpretationClient> client_;
@@ -640,7 +640,7 @@ if (handle_.ready()) {
 
 ### Asking from a tree
 
-Add `libbehavior_architecture_interpretation_bt_nodes.so` to `plugin_libraries`. The nodes use
+Add `libkoch2_interpretation_bt_nodes.so` to `plugin_libraries`. The nodes use
 the ROS node stored on the blackboard under `node`.
 
 ```xml
@@ -664,18 +664,18 @@ enclosed in single quotes, so that its double quotes need no escaping:
 
 ### Linking interpretation
 
-`find_package(behavior_architecture)` sets the default variables (`_LIBRARIES`, `_INCLUDE_DIRS`,
+`find_package(koch2)` sets the default variables (`_LIBRARIES`, `_INCLUDE_DIRS`,
 `_TARGETS`, `_DEPENDENCIES`) to the base library alone, so a package that does not use
 interpretation links nothing of it. A package that uses it names it:
 
 ```cmake
-find_package(behavior_architecture REQUIRED)
+find_package(koch2 REQUIRED)
 # InterpretationClient, with the generated interface and its dependencies
-target_link_libraries(my_orchestrator behavior_architecture::interpretation)
+target_link_libraries(my_orchestrator koch2::interpretation)
 ```
 
 The BT nodes are not linked; their library is loaded by name from `plugin_libraries`. From
-Python, the interface is `from behavior_architecture.srv import Interpret`. The other variables
+Python, the interface is `from koch2.srv import Interpret`. The other variables
 are listed in [docs/INTERPRETATION.md](docs/INTERPRETATION.md#linking).
 
 ### Logging and replay
@@ -722,7 +722,7 @@ Branch `lyrical` builds on ROS 2 Lyrical and on Jazzy. It differs from `main` in
 
 The C++ API, the configuration files, the executables and the launch files are the same on both
 branches. The interpretation targets use only `target_link_libraries()` and `.future.share()`, so
-they build unchanged on both. A package that uses `behavior_architecture` on Lyrical links it
+they build unchanged on both. A package that uses `koch2` on Lyrical links it
 with `target_link_libraries()`, as in
 [Building and loading the library](#building-and-loading-the-library).
 
@@ -730,8 +730,8 @@ with `target_link_libraries()`, as in
 
 ```bash
 cd ~/ws
-colcon build --packages-select behavior_architecture
-colcon test --packages-select behavior_architecture \
+colcon build --packages-select koch2
+colcon test --packages-select koch2 \
   --ctest-args -R "interpretation|test_base_orchestrator|test_episodic_memory_files|test_test_plan_executor"
 colcon test-result --verbose
 ```
@@ -751,7 +751,7 @@ processes of the computer.
 
 `test/check_consumer_variables.sh` checks that interpretation stays opt-in: with the install
 sourced, it prints the CMake variables that a package receives from
-`find_package(behavior_architecture)`, and with `-c BASELINE` compares them with the output of the
+`find_package(koch2)`, and with `-c BASELINE` compares them with the output of the
 same script for a build without interpretation.
 
 ## Troubleshooting

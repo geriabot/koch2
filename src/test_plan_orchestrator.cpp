@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "behavior_architecture/test_plan_orchestrator.hpp"
-#include "behavior_architecture/orchestrator_factory.hpp"
+#include "koch2/test_plan_orchestrator.hpp"
+#include "koch2/orchestrator_factory.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <behaviortree_cpp/bt_factory.h>
 #include "lifecycle_msgs/msg/state.hpp"
 
-namespace behavior_architecture {
+namespace koch2 {
 
 // Register the test orchestrator
 static OrchestratorRegistrar<TestPlanOrchestrator> test_registrar("test_plan");
@@ -62,7 +62,7 @@ void TestPlanOrchestrator::run_plan_from_dir(const std::string& plan_dir) {
         "test_bt_runner",
         "", // empty xml_path, we will use set_bt
         plugin_libraries_,
-        "behavior_architecture",
+        "koch2",
         10
     );
     register_runner("test_bt_runner", runner);
@@ -150,4 +150,4 @@ void TestPlanOrchestrator::go_to_state(int state) {
     // No-op for this simple orchestrator
 }
 
-} // namespace behavior_architecture
+} // namespace koch2

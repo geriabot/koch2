@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(behavior_architecture)
+project(koch2)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -22,10 +22,10 @@ find_package(llm_planner_interfaces QUIET)
 find_package(llm_bt_builder QUIET)
 if(llm_planner_interfaces_FOUND AND llm_bt_builder_FOUND)
   set(WITH_LLM_ORCHESTRATORS ON)
-  message(STATUS "behavior_architecture: building the LLM orchestrators (llm, mcp, llm_bt)")
+  message(STATUS "koch2: building the LLM orchestrators (llm, mcp, llm_bt)")
 else()
   set(WITH_LLM_ORCHESTRATORS OFF)
-  message(STATUS "behavior_architecture: llm_planner_interfaces or llm_bt_builder not found: "
+  message(STATUS "koch2: llm_planner_interfaces or llm_bt_builder not found: "
     "the LLM orchestrators and their executables are not built (import llm.repos to build them)")
 endif()
 find_package(geometry_msgs REQUIRED)
@@ -44,9 +44,9 @@ include_directories(include)
 
 # Base orchestrator library (to be used by other packages)
 add_library(${PROJECT_NAME} SHARED
-  src/behavior_architecture/base_orchestrator.cpp
-  src/behavior_architecture/behavior_runner.cpp
-  src/behavior_architecture/orchestrator_factory.cpp
+  src/koch2/base_orchestrator.cpp
+  src/koch2/behavior_runner.cpp
+  src/koch2/orchestrator_factory.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
@@ -95,7 +95,7 @@ if(WITH_LLM_ORCHESTRATORS)
     src/llm_plan_orchestrator.cpp
     src/mcp_llm_plan_orchestrator.cpp
   )
-  target_compile_definitions(mission_executor PRIVATE BEHAVIOR_ARCHITECTURE_WITH_LLM)
+  target_compile_definitions(mission_executor PRIVATE KOCH2_WITH_LLM)
   ament_target_dependencies(mission_executor llm_planner_interfaces llm_bt_builder)
 endif()
 
@@ -193,10 +193,10 @@ endif()
 # same on Jazzy and Lyrical; nothing above depends on them.
 #
 # Interpretation is opt-in for the packages that find this one: what the interface and the
-# client export is kept out of the package's default variables (behavior_architecture_TARGETS,
+# client export is kept out of the package's default variables (koch2_TARGETS,
 # _LIBRARIES, _INCLUDE_DIRS, _DEPENDENCIES), which hold only the base library, as without
-# interpretation; a package links interpretation by naming it (behavior_architecture::interpretation
-# or ${behavior_architecture_INTERPRETATION_TARGETS}), from cmake/interpretation-extras.cmake.in.
+# interpretation; a package links interpretation by naming it (koch2::interpretation
+# or ${koch2_INTERPRETATION_TARGETS}), from cmake/interpretation-extras.cmake.in.
 #
 # The base's exports are declared first, as without interpretation: the order of the first
 # calls is the order in which the config file computes the default variables
@@ -209,8 +209,8 @@ ament_export_dependencies(${dependencies})
 # restores (cmake/default_variables-extras.cmake.in): whatever the config files of rosidl add
 # to them, in any version, a package that does not ask for interpretation receives the
 # variables of the base alone
-set(behavior_architecture_default_variables_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-ament_register_extension("ament_package" "behavior_architecture_default_variables"
+set(koch2_default_variables_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+ament_register_extension("ament_package" "koch2_default_variables"
   "default_variables_package_hook.cmake")
 
 find_package(ament_cmake_python REQUIRED)
@@ -284,15 +284,15 @@ foreach(_list ${_interpretation_export_lists})
   set(${_list} "${_interpretation_saved${_list}}")
 endforeach()
 
-# The server: the Python package behavior_interpretation (the generated Python module is
-# behavior_architecture.srv) and its executable
-ament_python_install_package(behavior_interpretation)
+# The server: the Python package koch2_interpretation (the generated Python module is
+# koch2.srv) and its executable
+ament_python_install_package(koch2_interpretation)
 install(PROGRAMS scripts/interpretation_server
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # The non-blocking client, for orchestrators (by composition); exported as
-# behavior_architecture::interpretation
+# koch2::interpretation
 add_library(${PROJECT_NAME}_interpretation SHARED
   src/interpretation/interpretation_client.cpp
 )
