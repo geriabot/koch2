@@ -7,7 +7,6 @@
     <Speak 
       name="SpeakState1"
       text="Estado 1"
-      service_name="/tts_service"
       timeout="5000"/>
   </BehaviorTree>
   

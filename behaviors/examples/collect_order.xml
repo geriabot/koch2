@@ -1,121 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4">
+  <!-- Nodes of social_bt_nodes: Speak, SpeakEnum and Listen use the actions /tts_action and
+       /stt_action of simple_hri (their defaults); AskYesNoQuestion speaks the question, listens
+       and classifies the answer with the service /yesno_service; Extract uses /extract_service -->
   <BehaviorTree ID="CollectOrder">
-    <Sequence>
-      <!-- Greet customer -->
-      <Speak name="Greet"
-             text="Hola, ¿está listo para ordenar?"
-             service_name="/tts_service"
-             timeout="5000"/>
-      
-      <!-- Listen to response -->
-      <Listen name="ListenReady"
-              transcribed_text="{ready_response}"
-              service_name="/stt_service"
-              timeout="10000"/>
-      
-      <!-- Check if ready -->
-      <AskYesNoQuestion name="CheckReady"
-                    text="{ready_response}"
-                    result="{ready_answer}"
-                    service_name="/yesno_service"
-                    timeout="5000"/>
-      
-      <!-- If ready, collect order -->
-      <Switch2 case_1="YES" case_2="NO" variable="{ready_answer}">
-        <!-- YES - proceed to collect order -->
-        <Sequence>
-          <Speak name="AskOrder"
-                 text="Perfecto. ¿Qué desea beber y comer?"
-                 service_name="/tts_service"
-                 timeout="5000"/>
-          
-          <Listen name="ListenOrder"
-                  transcribed_text="{order_text}"
-                  service_name="/stt_service"
-                  timeout="15000"/>
-          
-          <!-- Extract drink and meal -->
-          <Sequence>
-            <Extract name="ExtractDrink"
-                     interest="bebida"
-                     text="{order_text}"
-                     extracted_info="{drink}"
-                     service_name="/extract_service"
-                     timeout="10000"/>
-            
-            <Extract name="ExtractMeal"
-                     interest="comida"
-                     text="{order_text}"
-                     extracted_info="{meal}"
-                     service_name="/extract_service"
-                     timeout="10000"/>
-          </Sequence>
-          
-          <!-- Confirm order -->
-          <Speak name="ConfirmOrder"
-                 text="Perfecto. Déjeme confirmar su orden"
-                 service_name="/tts_service"
-                 timeout="5000"/>
-          
-          <Script code="order_list := drink + ',' + meal"/>
-          
-          <SpeakEnum name="SayOrder"
-                     list="{order_list}"
-                     separator=","
-                     language="es"
-                     service_name="/tts_service"
-                     timeout="5000"/>
-          
-          <Speak name="ThankYou"
-                 text="¡Gracias! Su orden estará lista pronto"
-                 service_name="/tts_service"
-                 timeout="5000"/>
-        </Sequence>
-        
-        <!-- NO - wait a moment -->
+    <IfThenElse>
+      <!-- Greet the customer and ask whether they are ready: true only if they said yes -->
+      <Sequence>
+        <AskYesNoQuestion name="CheckReady"
+                          question="Hola, ¿está listo para ordenar?"
+                          confirmed="{ready}"
+                          max_wait="10.0"/>
+        <ScriptCondition code="ready == true"/>
+      </Sequence>
+
+      <!-- Ready: collect the order -->
+      <Sequence>
+        <Speak name="AskOrder"
+               text="Perfecto. ¿Qué desea beber y comer?"/>
+
+        <Listen name="ListenOrder"
+                transcribed_text="{order_text}"
+                max_wait="15.0"/>
+
+        <!-- Extract drink and meal -->
+        <Extract name="ExtractDrink"
+                 interest="bebida"
+                 text="{order_text}"
+                 extracted_info="{drink}"
+                 service_name="/extract_service"
+                 timeout="10000"/>
+
+        <Extract name="ExtractMeal"
+                 interest="comida"
+                 text="{order_text}"
+                 extracted_info="{meal}"
+                 service_name="/extract_service"
+                 timeout="10000"/>
+
+        <!-- Confirm the order -->
+        <Speak name="ConfirmOrder"
+               text="Perfecto. Déjeme confirmar su orden"/>
+
+        <Script code="order_list := drink + ',' + meal"/>
+
+        <SpeakEnum name="SayOrder"
+                   list="{order_list}"
+                   separator=","
+                   language="es"/>
+
+        <Speak name="ThankYou"
+               text="¡Gracias! Su orden estará lista pronto"/>
+      </Sequence>
+
+      <!-- Not ready (or no answer): wait, and fail so that the orchestrator asks again -->
+      <Sequence>
         <Speak name="SayWait"
-               text="Está bien, avíseme cuando esté listo"
-               service_name="/tts_service"
-               timeout="5000"/>
-        
-        <!-- Default -->
+               text="Está bien, avíseme cuando esté listo"/>
         <AlwaysFailure/>
-      </Switch2>
-    </Sequence>
+      </Sequence>
+    </IfThenElse>
   </BehaviorTree>
 
   <!-- Node models for Groot visualization -->
   <TreeNodesModel>
     <Action ID="Speak">
       <input_port name="text"/>
-      <input_port name="service_name"/>
-      <input_port name="timeout"/>
+      <input_port name="action_name" default="/tts_action"/>
+      <input_port name="timeout" default="5000"/>
     </Action>
     <Action ID="SpeakEnum">
       <input_port name="list"/>
-      <input_port name="separator"/>
-      <input_port name="language"/>
-      <input_port name="service_name"/>
-      <input_port name="timeout"/>
+      <input_port name="separator" default=","/>
+      <input_port name="language" default="es"/>
+      <input_port name="action_name" default="/tts_action"/>
+      <input_port name="timeout" default="5000"/>
     </Action>
     <Action ID="Listen">
-      <input_port name="transcribed_text"/>
-      <input_port name="service_name"/>
-      <input_port name="timeout"/>
+      <input_port name="action_name" default="/stt_action"/>
+      <input_port name="max_wait" default="0.0"/>
+      <input_port name="timeout" default="10000"/>
+      <output_port name="transcribed_text"/>
     </Action>
     <Action ID="Extract">
       <input_port name="interest"/>
       <input_port name="text"/>
-      <input_port name="extracted_info"/>
-      <input_port name="service_name"/>
+      <output_port name="extracted_info"/>
+      <input_port name="service_name" default="/extract_service"/>
       <input_port name="timeout"/>
     </Action>
     <Action ID="AskYesNoQuestion">
-      <input_port name="text"/>
-      <input_port name="result"/>
-      <input_port name="service_name"/>
-      <input_port name="timeout"/>
+      <input_port name="question"/>
+      <output_port name="confirmed"/>
+      <input_port name="tts_action_name" default="/tts_action"/>
+      <input_port name="stt_action_name" default="/stt_action"/>
+      <input_port name="service_name" default="/yesno_service"/>
+      <input_port name="max_wait" default="0.0"/>
+      <input_port name="timeout" default="10000"/>
     </Action>
   </TreeNodesModel>
 </root>

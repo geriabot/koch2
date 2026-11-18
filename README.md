@@ -213,11 +213,12 @@ ros2 launch koch2 mission_executor_simple.launch.py
 ros2 launch koch2 mission_executor_restaurant.launch.py
 ```
 
-`simple` runs `behaviors/examples/state1.xml` and `state2.xml`, whose `Speak` nodes call the
-service `/tts_service`. `restaurant` runs `behaviors/reusable/follow_behavior.xml` (the TF frames
+`simple` runs `behaviors/examples/state1.xml` and `state2.xml`, whose `Speak` nodes use the
+action `/tts_action`. `restaurant` runs `behaviors/reusable/follow_behavior.xml` (the TF frames
 `target` and `base_link`, the topics `/target`, `/sensors/sonar` and `/sensors/touch`) and then
-`behaviors/examples/collect_order.xml` (the services `/tts_service`, `/stt_service`,
-`/yesno_service` and `/extract_service`). A robot or a simulator must provide those interfaces.
+`behaviors/examples/collect_order.xml` (the actions `/tts_action` and `/stt_action`, the services
+`/yesno_service` and `/extract_service`). A robot or a simulator must provide those interfaces
+(simple_hri provides the speech ones).
 
 Any configuration runs with either of:
 

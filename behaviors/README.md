@@ -46,13 +46,15 @@ into your package and edit it.
 ## examples/collect_order.xml
 
 Tree `CollectOrder`, used by the `restaurant` example: asks a customer, in Spanish, whether they
-are ready to order, listens, checks the yes/no answer and, if yes, asks for the order, extracts
-the drink and the meal, repeats the order and thanks the customer. Its nodes are `Speak`,
-`Listen`, `AskYesNoQuestion`, `Extract` and `SpeakEnum` from social_bt_nodes, which call the
-services `/tts_service`, `/stt_service`, `/yesno_service` and `/extract_service`, and the
-built-in `Switch2`, `Script` and `AlwaysFailure`.
+are ready to order (`AskYesNoQuestion` speaks, listens and classifies the answer) and, if yes,
+asks for the order, extracts the drink and the meal, repeats the order and thanks the customer;
+otherwise it asks them to say when they are ready and fails, so that the orchestrator asks
+again. Its nodes are `Speak`, `Listen`, `AskYesNoQuestion`, `Extract` and `SpeakEnum` from
+social_bt_nodes, which use the actions `/tts_action` and `/stt_action` and the services
+`/yesno_service` and `/extract_service`, and the built-in `IfThenElse`, `ScriptCondition`,
+`Script` and `AlwaysFailure`.
 
 ## examples/state1.xml, examples/state2.xml
 
 Trees `State1` and `State2`, used by the `simple` example: each says one sentence (`Estado 1`,
-`Estado 2`) with the node `Speak` of social_bt_nodes, through `/tts_service`.
+`Estado 2`) with the node `Speak` of social_bt_nodes, through the action `/tts_action`.
