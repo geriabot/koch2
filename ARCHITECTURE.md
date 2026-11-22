@@ -278,6 +278,39 @@ per-run metrics and, optionally, an episodic memory of at most 200 success and 2
 `llm_bt_executor` fills its blackboard from the command line; the workflow and the metrics are
 described in [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md).
 
+**Mission flow.** With `llm_mission_objectives` (several objective files), the steps share the
+blackboard and run in order; `record_mission_step()` records each step and starts the next one
+when the step succeeded. Each objective declares `inputs` and `outputs` (its data contract).
+
+1. `start_run()` of the first step loads the blackboard seed and, with `llm_mission_precheck`,
+   checks the declared contract (`check_mission_contract()`: every input is in the initial
+   blackboard or a declared output of an earlier step); otherwise the mission is declined.
+2. Without `llm_mission_generate_first`, each step's tree is generated when the step starts, after
+   the earlier steps have run.
+3. With `llm_mission_generate_first`, the orchestrator first generates the trees of all the steps
+   (`start_pregeneration_step()`, `finish_pregeneration_step()`; the same `GENERATING_BT` state,
+   without running the trees). The builder of a later step is told, in
+   `available_blackboard_vars`, the outputs that the earlier steps declare. A step without a valid
+   tree ends the mission in `FAILED` before any tree runs (`generation_failed_before_execution`
+   or `declined`). When every step has a tree, `check_generated_mission_contract()` runs
+   `bt_contract.py --request` of llm_bt_builder on the actual trees and the catalog (must-write
+   analysis over each tree's control structure; the keys a step can count on are the initial
+   blackboard and the outputs declared by the earlier steps). A violation ends the mission
+   (`contract_violation`). Then the steps run in order, each with the tree generated for it; its
+   generation attempt and time are kept in its metrics.
+4. While a step runs, a failure follows the usual path: a local error is repaired with `fix_bt`,
+   which replaces only that step's tree. With `llm_mission_runtime_contract`, a tree that returns
+   SUCCESS fails its step (`contract_unmet`, a local error) if a declared output was not written
+   while it ran (the entry's sequence number did not change since the tree started, or the entry
+   has no value).
+5. When a step finally fails after generate-first, `invalidated_steps()` lists the later steps
+   whose inputs come from it, directly or through another invalidated step, in the mission row of
+   `mission_summary.csv` (the hook for replanning, which this orchestrator does not do).
+
+The check of the trees is in Python, in llm_bt_builder, so that the BT builder's validator rule
+(`must_write`) and the mission check share one implementation of the analysis; the orchestrator
+writes the trees and a request file and reads the JSON report of the script.
+
 ### Blackboard keys of the LLM orchestrators
 
 | Key | Default | Used by |
@@ -299,6 +332,11 @@ described in [BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md).
 | `llm_shutdown_on_completion` | `true` | `LLMBTOrchestrator` |
 | `llm_use_episodic_memory` | `false` | `LLMBTOrchestrator` |
 | `llm_max_bt_regenerations` | `3` | `LLMBTOrchestrator` |
+| `llm_mission_objectives` | `[]` | `LLMBTOrchestrator` (mission mode: one objective per step) |
+| `llm_mission_precheck` | `true` | `LLMBTOrchestrator` |
+| `llm_given_trees_dir` | `""` | `LLMBTOrchestrator` |
+| `llm_mission_generate_first` | `false` | `LLMBTOrchestrator` |
+| `llm_mission_runtime_contract` | `false` | `LLMBTOrchestrator` |
 
 `mission_executor` fills the keys of the plan orchestrators from the YAML file
 ([README](README.md#llm-orchestrators-experimental)); `llm_bt_executor` fills those of
