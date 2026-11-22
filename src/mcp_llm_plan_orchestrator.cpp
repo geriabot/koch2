@@ -86,6 +86,7 @@ void MCPLLMPlanOrchestrator::handle_start_mission(
 	failure_history_cache_.clear();
 	step_had_fix_.clear();
 	plan_was_replanned_ = false;
+	execution_start_time_ = std::chrono::steady_clock::now();  // per mission, not per node
 	last_event_ = "start_mission_request";
 
 	LLMPlanOrchestrator::handle_start_mission(req, resp);
@@ -112,6 +113,8 @@ void MCPLLMPlanOrchestrator::request_replan()
 void MCPLLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml)
 {
 	last_event_ = "request_generate_bt";
+	// A new tree for this step: no fix of it yet (a step index is reused after a replan/restart)
+	step_had_fix_[static_cast<int>(current_step_)] = false;
 	
 	write_mission_snapshot(true, "BT generation requested");
 	LLMPlanOrchestrator::request_generate_bt(objective_yaml);
@@ -128,7 +131,10 @@ void MCPLLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, cons
 std::string MCPLLMPlanOrchestrator::collect_failure_reason()
 {
 	std::string reason = LLMPlanOrchestrator::collect_failure_reason();
-	if (!reason.empty()) {
+	// The base class always returns a reason (a default one when the tree wrote none): record it
+	// only when the step really failed (FAILURE) or the tree wrote a failure code (FORCED_FAILURE)
+	const bool step_failed = (status_received_ == "FAILURE") || !last_failure_code_.empty();
+	if (step_failed && !reason.empty()) {
 		FailureEntry entry;
 		entry.timestamp = now_iso_utc();
 		entry.reason = reason;

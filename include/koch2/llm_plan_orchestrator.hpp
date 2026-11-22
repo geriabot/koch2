@@ -131,6 +131,9 @@ protected:
   static constexpr int MAX_REPLAN_ATTEMPTS = 3;
   int bt_regeneration_count_{0};
   static constexpr int MAX_BT_REGENERATIONS = 3;
+  // Restarts from step 0 after FORCED_FAILURE, per mission: a step that always forces the
+  // failure would otherwise loop forever (then a replan, if any is left, or FAILED)
+  static constexpr int MAX_FORCED_RESTARTS = 3;
   std::string last_failure_reason_;
   std::string last_failure_code_;
   std::vector<std::string> step_failure_history_;  // all failure reasons tried for current step
@@ -169,6 +172,11 @@ protected:
   std::string last_bt_xml_;  // The last XML correctly accepted to pass into FixBT
   bool replan_active_{true};       // enable/disable replanning after failures
   bool restart_after_forced_{true};  // restart from step 0 on FORCED_FAILURE (vs replan)
+  int forced_restart_count_{0};
+  // The service of the pending request (plan, generate, fix, replan) is gone for more than 10 s:
+  // its node died, the reply will never come. Ends the mission (FAILED) with that reason
+  bool pending_service_lost(const rclcpp::ClientBase::SharedPtr & client, const std::string & what);
+  std::optional<rclcpp::Time> service_unavailable_since_;
 
   // ── Execution saving ──────────────────────────────────────────────────────
   bool save_exec_{false};

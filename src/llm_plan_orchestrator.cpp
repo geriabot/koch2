@@ -201,6 +201,7 @@ void LLMPlanOrchestrator::handle_start_mission(
   steps_.clear();
   current_step_ = 0;
   replan_count_ = 0;
+  forced_restart_count_ = 0;
   bt_regeneration_count_ = 0;
   last_failure_reason_.clear();
   last_failure_code_.clear();
@@ -255,7 +256,12 @@ void LLMPlanOrchestrator::control_cycle()
     case State::WAITING_PLAN:
     {
       if (!plan_future_.has_value()) {break;}
-      if (plan_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {break;}
+      if (plan_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        if (pending_service_lost(plan_client_, "plan_task")) {
+          plan_future_.reset();
+        }
+        break;
+      }
 
       auto result = plan_future_->get();
       plan_future_.reset();
@@ -329,14 +335,22 @@ void LLMPlanOrchestrator::control_cycle()
     case State::GENERATING_BT:
     {
       if (!gen_bt_future_.has_value()) {break;}
-      if (gen_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {break;}
+      if (gen_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        if (pending_service_lost(generate_bt_client_, "generate_bt")) {
+          gen_bt_future_.reset();
+        }
+        break;
+      }
 
       auto result = gen_bt_future_->get();
       gen_bt_future_.reset();
 
       if (!result->success || result->bt_xml.empty()) {
-        RCLCPP_ERROR(get_logger(), "BT generation failed for step %zu", current_step_);
-        last_failure_reason_ = "BT generation failed";
+        RCLCPP_ERROR(get_logger(), "BT generation failed for step %zu: %s", current_step_,
+          result->message.c_str());
+        // The builder's reason (e.g. a repeated validation error) reaches the planner's replan
+        last_failure_reason_ = result->message.empty() ?
+          std::string("BT generation failed") : "BT generation failed: " + result->message;
         // Treat as a step failure → replan
         if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
           request_replan();
@@ -364,7 +378,12 @@ void LLMPlanOrchestrator::control_cycle()
         // regardless of whether the previous step ended with the same status string.
         last_status_ = "";
         status_received_ = "";
-        activate_runner("llm_bt_runner");
+        if (!activate_runner("llm_bt_runner")) {
+          // The runner could not build the tree (e.g. a port the node does not declare): a load
+          // failure with its reason, so that the BT builder can fix it instead of a blind replan
+          throw std::runtime_error(runner->activation_error().empty() ?
+            std::string("the runner could not be activated") : runner->activation_error());
+        }
         tree_loaded_ = true;
         step_start_time_ = now();
         
@@ -408,6 +427,10 @@ void LLMPlanOrchestrator::control_cycle()
         RCLCPP_WARN(get_logger(), "Step %zu timed out after %.1fs", current_step_, elapsed);
         deactivate_runner("llm_bt_runner");
         tree_loaded_ = false;
+        // Clear the failure keys the tree may have written, so that they do not reach the next
+        // step (a stale FORCED_FAILURE or bt_config_error would misclassify it)
+        (void)collect_failure_reason();
+        last_failure_code_ = "timeout";
         last_failure_reason_ = "Step timeout";
         if (save_exec_) {
           auto bt_exec_elapsed = (now() - step_start_time_).to_chrono<std::chrono::milliseconds>().count();
@@ -484,12 +507,17 @@ void LLMPlanOrchestrator::control_cycle()
         publish_status("FORCED_PLAN_RESTART");
         bt_regeneration_count_ = 0;
         
-        if (restart_after_forced_) {
+        if (restart_after_forced_ && forced_restart_count_ < MAX_FORCED_RESTARTS) {
           // Original behavior: restart from step 0
+          ++forced_restart_count_;
           current_step_ = 0;
           step_failure_history_.clear();
           advance_to_step(0);
         } else {
+          if (restart_after_forced_) {
+            RCLCPP_WARN(get_logger(), "FORCED_FAILURE %d times in this mission: replanning instead of "
+              "restarting from step 0", forced_restart_count_ + 1);
+          }
           // Alternative: request a full replan
           if (replan_count_ < MAX_REPLAN_ATTEMPTS) {
             request_replan();
@@ -540,7 +568,12 @@ void LLMPlanOrchestrator::control_cycle()
     case State::WAITING_FIX_BT:
     {
       if (!fix_bt_future_.has_value()) {break;}
-      if (fix_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {break;}
+      if (fix_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        if (pending_service_lost(fix_bt_client_, "fix_bt")) {
+          fix_bt_future_.reset();
+        }
+        break;
+      }
 
       auto result = fix_bt_future_->get();
       fix_bt_future_.reset();
@@ -571,7 +604,12 @@ void LLMPlanOrchestrator::control_cycle()
         runner->set_bt(result->bt_xml);
         last_status_ = "";
         status_received_ = "";
-        activate_runner("llm_bt_runner");
+        if (!activate_runner("llm_bt_runner")) {
+          // The runner could not build the tree (e.g. a port the node does not declare): a load
+          // failure with its reason, so that the BT builder can fix it instead of a blind replan
+          throw std::runtime_error(runner->activation_error().empty() ?
+            std::string("the runner could not be activated") : runner->activation_error());
+        }
         tree_loaded_ = true;
         step_start_time_ = now();
         transition_to(State::EXECUTING_BT);
@@ -595,7 +633,12 @@ void LLMPlanOrchestrator::control_cycle()
     case State::WAITING_REPLAN:
     {
       if (!replan_future_.has_value()) {break;}
-      if (replan_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {break;}
+      if (replan_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        if (pending_service_lost(replan_client_, "replan_task")) {
+          replan_future_.reset();
+        }
+        break;
+      }
 
       auto result = replan_future_->get();
       replan_future_.reset();
@@ -683,8 +726,17 @@ void LLMPlanOrchestrator::control_cycle()
 
 void LLMPlanOrchestrator::request_plan()
 {
-  if (!plan_client_->wait_for_service(std::chrono::seconds(0))) {
-    RCLCPP_WARN(get_logger(), "plan_task service not available yet, will retry");
+  // A request sent before the service exists may be lost: wait for the planner (up to 60 s)
+  int waited_s = 0;
+  while (rclcpp::ok() && !plan_client_->wait_for_service(std::chrono::seconds(1))) {
+    if (++waited_s >= 60) {
+      RCLCPP_ERROR(get_logger(), "plan_task service not available after 60 s");
+      last_failure_reason_ = "plan_task service not available";
+      publish_status("PLANNER_UNAVAILABLE");
+      transition_to(State::FAILED);
+      return;
+    }
+    RCLCPP_WARN(get_logger(), "Waiting for plan_task service...");
   }
 
   auto request = std::make_shared<llm_planner_interfaces::srv::PlanTask::Request>();
@@ -699,6 +751,7 @@ void LLMPlanOrchestrator::request_plan()
   RCLCPP_INFO(get_logger(), "Requesting plan for goal: '%s'", goal_.c_str());
   RCLCPP_INFO(get_logger(), "  → context: '%s'", context_.c_str());
   plan_start_time_ = std::chrono::steady_clock::now();
+  service_unavailable_since_.reset();
   plan_future_ = plan_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_PLAN);
 }
@@ -737,6 +790,7 @@ void LLMPlanOrchestrator::request_replan()
     replan_count_, current_step_, last_failure_reason_.c_str());
   // Take replan_start_time_ right before sending the replan request (for metrics)
   replan_start_time_ = std::chrono::steady_clock::now();
+  service_unavailable_since_.reset();
   replan_future_ = replan_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_REPLAN);
 }
@@ -753,7 +807,10 @@ void LLMPlanOrchestrator::advance_to_step(std::size_t idx)
       runner->set_bt(step.cached_bt_xml);
       last_status_ = "";
       status_received_ = "";
-      activate_runner("llm_bt_runner");
+      if (!activate_runner("llm_bt_runner")) {
+        throw std::runtime_error(runner->activation_error().empty() ?
+          std::string("the runner could not be activated") : runner->activation_error());
+      }
       tree_loaded_ = true;
       step_start_time_ = now();
       transition_to(State::EXECUTING_BT);
@@ -861,6 +918,7 @@ void LLMPlanOrchestrator::request_generate_bt(const std::string & objective_yaml
   }
   // Take BT generation start time right before sending the request (for metrics)
   bt_gen_start_time_ = std::chrono::steady_clock::now();
+  service_unavailable_since_.reset();
   gen_bt_future_ = generate_bt_client_->async_send_request(request).future.share();
   transition_to(State::GENERATING_BT);
 }
@@ -955,6 +1013,7 @@ void LLMPlanOrchestrator::request_fix_bt(const std::string & broken_xml, const s
   RCLCPP_WARN(get_logger(), "Requesting FixBT for step %zu (attempt %d). Error: %s",
               current_step_, bt_regeneration_count_, error_msg.c_str());
 
+  service_unavailable_since_.reset();
   fix_bt_future_ = fix_bt_client_->async_send_request(request).future.share();
   transition_to(State::WAITING_FIX_BT);
 }
@@ -1044,6 +1103,26 @@ std::vector<LLMPlanOrchestrator::Step> LLMPlanOrchestrator::parse_plan(
 // ─────────────────────────────────────────────────────────────────────────────
 // BT failure falldiagnosis
 // ─────────────────────────────────────────────────────────────────────────────
+
+bool LLMPlanOrchestrator::pending_service_lost(
+  const rclcpp::ClientBase::SharedPtr & client, const std::string & what)
+{
+  if (client->service_is_ready()) {
+    service_unavailable_since_.reset();
+    return false;
+  }
+  if (!service_unavailable_since_) {
+    service_unavailable_since_ = now();
+  }
+  if ((now() - *service_unavailable_since_).seconds() <= 10.0) {
+    return false;
+  }
+  RCLCPP_ERROR(get_logger(), "%s: the service disappeared while the request was pending", what.c_str());
+  last_failure_reason_ = what + " service disappeared while the request was pending (did its node die?)";
+  publish_status("LLM_SERVICE_LOST");
+  transition_to(State::FAILED);
+  return true;
+}
 
 std::string LLMPlanOrchestrator::collect_failure_reason()
 {
