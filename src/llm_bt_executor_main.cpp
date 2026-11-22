@@ -17,6 +17,7 @@ void print_usage()
 {
   std::cerr
     << "Usage: ros2 run koch2 llm_bt_executor -- --objective <file> [options]\n"
+    << "  Repeat --objective to run a mission: the trees run in order on one blackboard.\n"
     << "Options:\n"
     << "  --capabilities <file>          Capabilities YAML file.\n"
     << "  --plugin-library <file>        Repeatable BT plugin library.\n"
@@ -31,6 +32,13 @@ void print_usage()
     << "  --blackboard-seed <file>       YAML file with initial blackboard key-values.\n"
     << "  --strict-objective-inputs      Fail if objective inputs are missing in blackboard.\n"
     << "  --use-episodic-memory          Enable storage and retrieval of episodic memory.\n"
+    << "  --given-trees <dir>            Run <dir>/<objective name>.xml instead of generating.\n"
+    << "  --no-mission-precheck          Do not check the mission's data contract before running.\n"
+    << "  --generate-first               Mission: generate (and check) every step's tree before\n"
+    << "                                 running any; a step without a valid tree fails the\n"
+    << "                                 mission before the robot moves.\n"
+    << "  --runtime-contract             A tree that returns SUCCESS without writing a declared\n"
+    << "                                 output fails its step (contract_unmet).\n"
     << "  --no-save-exec                 Disable metric and artifact persistence.\n";
 }
 
@@ -41,7 +49,7 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   const auto args = rclcpp::remove_ros_arguments(argc, argv);
 
-  std::string objective_file;
+  std::vector<std::string> objective_files;
   std::string capabilities_yaml;
   std::string task_name;
   std::string exec_dir = "exec/bt_generation_eval";
@@ -55,6 +63,10 @@ int main(int argc, char ** argv)
   bool save_exec = true;
   bool use_episodic_memory = false;
   bool strict_objective_inputs = false;
+  bool mission_precheck = true;
+  bool generate_first = false;
+  bool runtime_contract = false;
+  std::string given_trees_dir;
 
   for (std::size_t i = 1; i < args.size(); ++i) {
     const std::string arg = args[i];
@@ -68,7 +80,7 @@ int main(int argc, char ** argv)
     };
 
     if (arg == "--objective") {
-      objective_file = require_value(arg);
+      objective_files.push_back(require_value(arg));
     } else if (arg == "--capabilities") {
       capabilities_yaml = require_value(arg);
     } else if (arg == "--plugin-library") {
@@ -93,6 +105,14 @@ int main(int argc, char ** argv)
       strict_objective_inputs = true;
     } else if (arg == "--use-episodic-memory") {
       use_episodic_memory = true;
+    } else if (arg == "--given-trees") {
+      given_trees_dir = require_value(arg);
+    } else if (arg == "--no-mission-precheck") {
+      mission_precheck = false;
+    } else if (arg == "--generate-first") {
+      generate_first = true;
+    } else if (arg == "--runtime-contract") {
+      runtime_contract = true;
     } else if (arg == "--no-save-exec") {
       save_exec = false;
     } else if (arg == "--help" || arg == "-h") {
@@ -105,7 +125,7 @@ int main(int argc, char ** argv)
     }
   }
 
-  if (objective_file.empty()) {
+  if (objective_files.empty()) {
     print_usage();
     return 1;
   }
@@ -120,7 +140,10 @@ int main(int argc, char ** argv)
   auto blackboard = BT::Blackboard::create();
   auto node = std::make_shared<rclcpp::Node>("llm_bt_executor");
   blackboard->set("node", node);
-  blackboard->set("llm_objective_path", objective_file);
+  blackboard->set("llm_objective_path", objective_files.front());
+  if (objective_files.size() > 1) {
+    blackboard->set("llm_mission_objectives", objective_files);
+  }
   blackboard->set("llm_control_period_ms", control_period_ms);
   blackboard->set("llm_timeout_sec", timeout_sec);
   blackboard->set("llm_max_bt_regenerations", max_fixes);
@@ -129,6 +152,12 @@ int main(int argc, char ** argv)
   blackboard->set("llm_save_exec", save_exec);
   blackboard->set("llm_use_episodic_memory", use_episodic_memory);
   blackboard->set("llm_fail_on_missing_inputs", strict_objective_inputs);
+  blackboard->set("llm_mission_precheck", mission_precheck);
+  blackboard->set("llm_mission_generate_first", generate_first);
+  blackboard->set("llm_mission_runtime_contract", runtime_contract);
+  if (!given_trees_dir.empty()) {
+    blackboard->set("llm_given_trees_dir", given_trees_dir);
+  }
   blackboard->set("llm_shutdown_on_completion", true);
   blackboard->set("llm_exec_dir", exec_dir);
   if (!capabilities_yaml.empty()) {

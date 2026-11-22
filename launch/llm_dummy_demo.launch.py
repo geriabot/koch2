@@ -24,6 +24,37 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+# Keys of <component>_llm_options and their types (parameters of the LLM nodes)
+PLANNER_OPTIONS = {'url': str, 'num_ctx': int, 'timeout_sec': float, 'keep_alive': str,
+                   'think': str, 'max_tokens': int, 'temperature': float}
+BT_BUILDER_OPTIONS = {'url': str, 'num_ctx': int, 'timeout_sec': float, 'keep_alive': str,
+                      'think': str, 'max_tokens': int, 'max_history_turns': int,
+                      'repair_restart_after': int, 'feedback_level': int,
+                      'generation_mode': str, 'dataflow_max_attempts': int}
+
+
+def _llm_options(config, component):
+    """llm_options of the config overridden by <component>_llm_options, typed."""
+    types = PLANNER_OPTIONS if component == 'planner' else BT_BUILDER_OPTIONS
+    shared = config.get('llm_options') or {}
+    own = config.get(f'{component}_llm_options') or {}
+    merged = {k: v for k, v in shared.items() if k in types}   # shared: what applies
+    merged.update(own)
+    known = set(PLANNER_OPTIONS) | set(BT_BUILDER_OPTIONS)
+    for key in shared:
+        if key not in known:
+            raise ValueError(f'llm_options: unknown key "{key}" (known: {", ".join(sorted(known))})')
+    options = {}
+    for key, value in merged.items():
+        if key not in types:
+            raise ValueError(f'{component}_llm_options: unknown key "{key}" '
+                             f'(known: {", ".join(types)})')
+        if types[key] is str and isinstance(value, bool):
+            value = 'true' if value else 'false'   # think: false in YAML is a bool
+        options[key] = types[key](value)
+    return options
+
+
 def launch_setup(context, *args, **kwargs):
     """Read the unified config YAML and build the node list from it.
 
@@ -53,6 +84,11 @@ def launch_setup(context, *args, **kwargs):
     bt_builder_model    = config.get('bt_builder_llm_model',    config.get('llm_model',    'gemini-2.5-flash'))
     bt_builder_api_key  = config.get('bt_builder_llm_api_key',  config.get('llm_api_key',  ''))
 
+    # Options of the LLM call (endpoint, and for local models served by Ollama: context,
+    # reasoning, timeout...). See the comments of llm_local_config.yaml
+    planner_options    = _llm_options(config, 'planner')
+    bt_builder_options = _llm_options(config, 'bt_builder')
+
     # ── BT executor ──────────────────────────────────────────────────────────
     bt_nodes_package      = config.get('bt_nodes_package',    'dummy_bt_nodes')
     bt_control_period_ms  = config.get('bt_control_period_ms', 50)
@@ -75,6 +111,8 @@ def launch_setup(context, *args, **kwargs):
                 'llm_provider': planner_provider,
                 'llm_model_id': planner_model,
                 'llm_api_key':  planner_api_key,
+                **{f'llm_{k}' if k != 'url' else 'llm_api_url': v
+                   for k, v in planner_options.items() if k in PLANNER_OPTIONS},
             }],
         ))
 
@@ -86,10 +124,13 @@ def launch_setup(context, *args, **kwargs):
             name='llm_bt_agent',
             output='screen',
             emulate_tty=True,
+            # The parameters of bt_rag_agent_node are model_id, api_key and api_url (not llm_*)
             parameters=[{
                 'llm_provider': bt_builder_provider,
-                'llm_model_id': bt_builder_model,
-                'llm_api_key':  bt_builder_api_key,
+                'model_id':     bt_builder_model,
+                'api_key':      bt_builder_api_key,
+                **{('api_url' if k == 'url' else k): v
+                   for k, v in bt_builder_options.items() if k in BT_BUILDER_OPTIONS},
             }],
         ))
 

@@ -3,13 +3,19 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <cstdlib>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "ament_index_cpp/get_package_prefix.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "koch2/orchestrator_factory.hpp"
 #include "koch2/yaml_utils.hpp"
@@ -92,6 +98,50 @@ std::string sanitize_path_component(std::string value)
   return value;
 }
 
+/// The keys listed under objective.<field> (inputs or outputs) of an objective YAML file, without
+/// `{}`; empty when the file cannot be read. name receives objective.name (or the file's stem).
+std::vector<std::string> objective_keys(
+  const std::string & path, const std::string & field, std::string * name = nullptr)
+{
+  std::vector<std::string> keys;
+  if (name) {
+    *name = std::filesystem::path(path).stem().string();
+  }
+  try {
+    const YAML::Node root = YAML::LoadFile(path);
+    const YAML::Node objective = root["objective"] ? root["objective"] : root;
+    if (name && objective["name"]) {
+      *name = objective["name"].as<std::string>();
+    }
+    if (objective[field] && objective[field].IsSequence()) {
+      for (const auto & item : objective[field]) {
+        if (item.IsScalar()) {
+          const std::string key = normalize_blackboard_key(item.as<std::string>());
+          if (!key.empty()) {
+            keys.push_back(key);
+          }
+        }
+      }
+    }
+  } catch (const std::exception &) {
+  }
+  return keys;
+}
+
+/// A string as one single-quoted shell word.
+std::string shell_quote(const std::string & value)
+{
+  std::string out = "'";
+  for (const char c : value) {
+    if (c == '\'') {
+      out += "'\\''";
+    } else {
+      out += c;
+    }
+  }
+  return out + "'";
+}
+
 }  // namespace
 
 static OrchestratorRegistrar<LLMBTOrchestrator> llm_bt_registrar("llm_bt");
@@ -124,6 +174,12 @@ LLMBTOrchestrator::LLMBTOrchestrator(BT::Blackboard::Ptr blackboard)
   }
 
   try {
+    llm_generation_timeout_sec_ = blackboard_->get<double>("llm_generation_timeout_sec");
+  } catch (...) {
+    llm_generation_timeout_sec_ = 0.0;  // no limit: the BT builder bounds its own attempts
+  }
+
+  try {
     capabilities_yaml_ = blackboard_->get<std::string>("llm_capabilities_yaml");
   } catch (...) {
   }
@@ -131,6 +187,40 @@ LLMBTOrchestrator::LLMBTOrchestrator(BT::Blackboard::Ptr blackboard)
   try {
     objective_path_ = blackboard_->get<std::string>("llm_objective_path");
   } catch (...) {
+  }
+
+  try {
+    mission_objectives_ = blackboard_->get<std::vector<std::string>>("llm_mission_objectives");
+  } catch (...) {
+    mission_objectives_.clear();
+  }
+  if (!mission_objectives_.empty()) {
+    mission_step_ = 0;
+    objective_path_ = mission_objectives_.front();
+  }
+
+  try {
+    given_trees_dir_ = blackboard_->get<std::string>("llm_given_trees_dir");
+  } catch (...) {
+    given_trees_dir_.clear();
+  }
+
+  try {
+    mission_precheck_ = blackboard_->get<bool>("llm_mission_precheck");
+  } catch (...) {
+    mission_precheck_ = true;
+  }
+
+  try {
+    generate_first_ = blackboard_->get<bool>("llm_mission_generate_first");
+  } catch (...) {
+    generate_first_ = false;
+  }
+
+  try {
+    runtime_contract_ = blackboard_->get<bool>("llm_mission_runtime_contract");
+  } catch (...) {
+    runtime_contract_ = false;
   }
 
   try {
@@ -174,6 +264,12 @@ LLMBTOrchestrator::LLMBTOrchestrator(BT::Blackboard::Ptr blackboard)
       task_name_ = blackboard_->get<std::string>("llm_mission_name");
     } catch (...) {
     }
+  }
+
+  if (!mission_objectives_.empty()) {
+    mission_name_ = task_name_.empty() ? "mission" : task_name_;
+    task_name_ = mission_name_ + "__s0_" +
+      std::filesystem::path(mission_objectives_.front()).stem().string();
   }
 
   try {
@@ -283,14 +379,26 @@ void LLMBTOrchestrator::start_run()
   }
 
   // Capture baseline keys before loading seed values so seeded vars are considered
-  // dynamic context and can be injected into GenerateBT/FixBT prompts.
-  initial_blackboard_keys_.clear();
-  for (const auto & key : blackboard_->getKeys()) {
-    initial_blackboard_keys_.emplace_back(key.data(), key.size());
+  // dynamic context and can be injected into GenerateBT/FixBT prompts. In a mission only at the
+  // first step: the keys written by earlier trees are dynamic context for the later ones.
+  // With generate first, the steps run after all the trees were generated: the initial blackboard
+  // and the precheck belong to the generation phase
+  const bool first_step = (mission_objectives_.empty() || mission_step_ == 0) && !pregen_done_;
+  if (first_step) {
+    initial_blackboard_keys_.clear();
+    for (const auto & key : blackboard_->getKeys()) {
+      initial_blackboard_keys_.emplace_back(key.data(), key.size());
+    }
   }
 
-  if (!preload_blackboard_seed()) {
+  if (first_step && !preload_blackboard_seed()) {
     publish_status("BLACKBOARD_SEED_LOAD_FAILED");
+    transition_to(State::FAILED);
+    return;
+  }
+
+  if (first_step && mission_precheck_ && !check_mission_contract()) {
+    publish_status("MISSION_DECLINED");
     transition_to(State::FAILED);
     return;
   }
@@ -306,10 +414,268 @@ void LLMBTOrchestrator::start_run()
       objective_name_;
   }
 
+  // Label of this tree in the execution trace (BT_TRACE_FILE): the step of the mission
+  blackboard_->set("llm_trace_label", task_name_);
+  // The mission step being run (1-based), for step-scoped test scenarios (test doubles)
+  if (!mission_objectives_.empty()) {
+    setenv("BT_MISSION_STEP", std::to_string(mission_step_ + 1).c_str(), 1);
+  }
+
+  const bool generate_first = generate_first_ && !mission_objectives_.empty();
+  if (save_exec_) {
+    if (generate_first && pregen_done_ && mission_step_ < pregen_steps_.size() &&
+      !pregen_steps_[mission_step_].exec_run_dir.empty())
+    {
+      exec_run_dir_ = pregen_steps_[mission_step_].exec_run_dir;  // where its tree was saved
+    } else {
+      initialize_execution_dir();
+    }
+  }
+
+  if (generate_first && !pregen_done_) {
+    // First the trees of all the steps (this one, then start_pregeneration_step for the next ones)
+    RCLCPP_INFO(get_logger(), "Generate first: generating the trees of the %zu steps before running any",
+      mission_objectives_.size());
+    pregen_active_ = true;
+    pregen_steps_.clear();
+    request_generate_bt();
+    return;
+  }
+  if (generate_first && mission_step_ < pregen_steps_.size()) {
+    // The tree generated before execution: its generation attempt and time are kept
+    const auto & pre = pregen_steps_[mission_step_];
+    run_metrics_ = pre.metrics;
+    if (!run_metrics_.attempts.empty()) {
+      current_attempt_index_ = 0;
+    }
+    auto response = std::make_shared<llm_bt_builder::srv::GenerateBT::Response>();
+    response->bt_xml = pre.bt_xml;
+    response->success = true;
+    response->message = pre.message;
+    given_result_ = response;
+    pregen_delivery_ = true;
+    transition_to(State::GENERATING_BT);
+    return;
+  }
+  request_generate_bt();
+}
+
+void LLMBTOrchestrator::start_pregeneration_step()
+{
+  objective_path_ = mission_objectives_[mission_step_];
+  objective_name_.clear();
+  objective_description_.clear();
+  task_name_ = mission_name_ + "__s" + std::to_string(mission_step_) + "_" +
+    std::filesystem::path(objective_path_).stem().string();
+  run_metrics_ = RunMetrics{};
+  run_start_time_ = std::chrono::steady_clock::now();
+  bt_regeneration_count_ = 0;
+  last_failure_reason_.clear();
+  last_failure_code_.clear();
+  current_attempt_index_.reset();
+  exec_run_dir_.clear();
+
+  if (!load_objective_file()) {
+    pregen_active_ = false;
+    last_failure_code_ = "generation_failed_before_execution";
+    last_failure_reason_ = "Could not load objective YAML from: " + objective_path_;
+    publish_status("OBJECTIVE_LOAD_FAILED");
+    transition_to(State::FAILED);
+    return;
+  }
   if (save_exec_) {
     initialize_execution_dir();
   }
   request_generate_bt();
+}
+
+void LLMBTOrchestrator::finish_pregeneration_step(
+  const llm_bt_builder::srv::GenerateBT::Response::SharedPtr & result)
+{
+  auto & attempt = run_metrics_.attempts[*current_attempt_index_];
+  if (!result->success || result->bt_xml.empty()) {
+    // No valid tree for this step: the mission ends here, before any step has run
+    const bool declined = result->message.rfind("DECLINED", 0) == 0;
+    pregen_active_ = false;
+    attempt.status = declined ? "DECLINED" : "GENERATION_FAILED";
+    attempt.failure_reason = result->message;
+    last_failure_code_ = declined ? "declined" : "generation_failed_before_execution";
+    attempt.failure_code = last_failure_code_;
+    const std::string message = result->message.empty() ? "BT generation returned empty XML" :
+      result->message;
+    last_failure_reason_ = declined ? message :
+      "no valid tree before execution (no step has run): " + message;
+    RCLCPP_ERROR(get_logger(), "Generate first: step %zu (%s): %s", mission_step_,
+      objective_name_.c_str(), last_failure_reason_.c_str());
+    publish_status(declined ? "BT_DECLINED" : "BT_GENERATION_FAILED");
+    transition_to(State::FAILED);
+    return;
+  }
+
+  last_bt_xml_ = result->bt_xml;
+  analyze_bt_xml(result->bt_xml, attempt);
+  attempt.bt_xml_file = save_bt_xml(result->bt_xml, attempt.attempt_id, attempt.attempt_type);
+  attempt.status = "GENERATED";
+  PregeneratedStep pre;
+  pre.bt_xml = result->bt_xml;
+  pre.message = result->message;
+  pre.metrics = run_metrics_;
+  pre.exec_run_dir = exec_run_dir_;
+  pregen_steps_.push_back(pre);
+  RCLCPP_INFO(get_logger(), "Generate first: tree of step %zu/%zu (%s) generated", mission_step_ + 1,
+    mission_objectives_.size(), objective_name_.c_str());
+
+  if (mission_step_ + 1 < mission_objectives_.size()) {
+    ++mission_step_;
+    start_pregeneration_step();
+    return;
+  }
+
+  // Every step has a tree: the mission's data contract on the actual trees, then the first step
+  pregen_active_ = false;
+  if (!check_generated_mission_contract()) {
+    publish_status("MISSION_CONTRACT_VIOLATION");
+    transition_to(State::FAILED);
+    return;
+  }
+  pregen_done_ = true;
+  mission_step_ = 0;
+  objective_path_ = mission_objectives_.front();
+  objective_name_.clear();
+  objective_description_.clear();
+  task_name_ = mission_name_ + "__s0_" + std::filesystem::path(objective_path_).stem().string();
+  exec_run_dir_.clear();
+  start_run();
+}
+
+bool LLMBTOrchestrator::check_generated_mission_contract()
+{
+  auto t = std::time(nullptr);
+  auto tm = *std::localtime(&t);
+  std::ostringstream stamp;
+  stamp << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+  std::filesystem::path dir = save_exec_ ?
+    std::filesystem::path(exec_base_dir_) / "mission_contract" /
+    (sanitize_path_component(mission_name_) + "_" + stamp.str()) :
+    std::filesystem::temp_directory_path() /
+    ("koch2_mission_contract_" + std::to_string(::getpid()));
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+
+  auto fail = [this](std::size_t step, const std::string & code, const std::string & reason) {
+      // The step the check names is reported as the failed one (its generation attempt kept)
+      mission_step_ = std::min(step, pregen_steps_.size() - 1);
+      objective_path_ = mission_objectives_[mission_step_];
+      objective_name_.clear();
+      load_objective_file();
+      task_name_ = mission_name_ + "__s" + std::to_string(mission_step_) + "_" +
+        std::filesystem::path(objective_path_).stem().string();
+      run_metrics_ = pregen_steps_[mission_step_].metrics;
+      exec_run_dir_ = pregen_steps_[mission_step_].exec_run_dir;
+      current_attempt_index_.reset();
+      if (!run_metrics_.attempts.empty()) {
+        current_attempt_index_ = 0;
+        run_metrics_.attempts[0].status = "CONTRACT_VIOLATION";
+        run_metrics_.attempts[0].failure_code = code;
+        run_metrics_.attempts[0].failure_reason = reason;
+      }
+      last_failure_code_ = code;
+      last_failure_reason_ = "mission contract checked before execution (no step has run): " + reason;
+      RCLCPP_ERROR(get_logger(), "%s", last_failure_reason_.c_str());
+      return false;
+    };
+
+  // The catalog, the trees and the request of the check (bt_contract.py --request)
+  std::string catalog = capabilities_yaml_;
+  if (!catalog.empty() && catalog.find('\n') == std::string::npos && catalog.size() > 5 &&
+    catalog.substr(catalog.size() - 5) == ".yaml")
+  {
+    catalog = load_file(catalog);
+  }
+  {
+    std::ofstream out(dir / "catalog.yaml");
+    out << catalog;
+  }
+  YAML::Emitter request;
+  request << YAML::BeginMap;
+  request << YAML::Key << "catalog" << YAML::Value << (dir / "catalog.yaml").string();
+  request << YAML::Key << "initial_keys" << YAML::Value << YAML::BeginSeq;
+  std::set<std::string> initial;
+  for (const auto & key : blackboard_->getKeys()) {
+    const std::string k = normalize_blackboard_key(std::string{key.data(), key.size()});
+    if (!k.empty() && initial.insert(k).second) {
+      request << k;
+    }
+  }
+  request << YAML::EndSeq;
+  request << YAML::Key << "steps" << YAML::Value << YAML::BeginSeq;
+  for (std::size_t i = 0; i < pregen_steps_.size(); ++i) {
+    const auto tree = dir / ("step_" + std::to_string(i) + ".xml");
+    std::ofstream out(tree);
+    out << pregen_steps_[i].bt_xml;
+    request << YAML::BeginMap
+            << YAML::Key << "objective" << YAML::Value << mission_objectives_[i]
+            << YAML::Key << "tree" << YAML::Value << tree.string()
+            << YAML::EndMap;
+  }
+  request << YAML::EndSeq << YAML::EndMap;
+  {
+    std::ofstream out(dir / "request.yaml");
+    out << request.c_str() << "\n";
+  }
+
+  std::string script;
+  try {
+    script = ament_index_cpp::get_package_prefix("llm_bt_builder") +
+      "/lib/llm_bt_builder/bt_contract.py";
+  } catch (const std::exception & e) {
+    return fail(0, "contract_check_error", std::string("llm_bt_builder not found: ") + e.what());
+  }
+  const std::string command = shell_quote(script) + " --request " +
+    shell_quote((dir / "request.yaml").string()) + " 2> " + shell_quote((dir / "stderr.txt").string());
+  std::string output;
+  int exit_code = -1;
+  if (FILE * pipe = ::popen(command.c_str(), "r")) {
+    char buffer[4096];
+    std::size_t n = 0;
+    while ((n = std::fread(buffer, 1, sizeof(buffer), pipe)) > 0) {
+      output.append(buffer, n);
+    }
+    const int status = ::pclose(pipe);
+    exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+  }
+  {
+    std::ofstream out(dir / "report.json");
+    out << output;
+  }
+
+  // The report is JSON (a subset of YAML): {ok, failed_step, reason, steps}
+  bool ok = false;
+  long failed_step = 0;
+  std::string reason;
+  try {
+    const YAML::Node report = YAML::Load(output);
+    ok = report["ok"] && report["ok"].as<bool>();
+    if (report["failed_step"]) {
+      failed_step = std::max(0L, report["failed_step"].as<long>());
+    }
+    if (report["reason"]) {
+      reason = report["reason"].as<std::string>();
+    }
+  } catch (const std::exception & e) {
+    reason = "unreadable report of the contract check (" + std::string(e.what()) + "), see " +
+      (dir / "stderr.txt").string();
+  }
+  if (exit_code == 0 && ok) {
+    RCLCPP_INFO(get_logger(), "Mission contract met by the generated trees (%s)", dir.c_str());
+    return true;
+  }
+  if (exit_code == 1) {
+    return fail(static_cast<std::size_t>(failed_step), "contract_violation", reason);
+  }
+  return fail(0, "contract_check_error",
+    reason.empty() ? "the contract check could not run (exit " + std::to_string(exit_code) +
+    "), see " + (dir / "stderr.txt").string() : reason);
 }
 
 bool LLMBTOrchestrator::load_objective_file()
@@ -320,6 +686,7 @@ bool LLMBTOrchestrator::load_objective_file()
   }
 
   objective_inputs_.clear();
+  objective_outputs_.clear();
 
   try {
     const YAML::Node root = YAML::Load(objective_yaml_);
@@ -346,6 +713,16 @@ bool LLMBTOrchestrator::load_objective_file()
           const std::string normalized = normalize_blackboard_key(input_node.as<std::string>());
           if (!normalized.empty()) {
             objective_inputs_.push_back(normalized);
+          }
+        }
+      }
+    }
+    if (objective_node["outputs"] && objective_node["outputs"].IsSequence()) {
+      for (const auto & output_node : objective_node["outputs"]) {
+        if (output_node.IsScalar()) {
+          const std::string normalized = normalize_blackboard_key(output_node.as<std::string>());
+          if (!normalized.empty()) {
+            objective_outputs_.push_back(normalized);
           }
         }
       }
@@ -757,6 +1134,32 @@ void LLMBTOrchestrator::initialize_attempt_tracking(const std::string & attempt_
   run_metrics_.attempts.push_back(attempt);
   current_attempt_index_ = run_metrics_.attempts.size() - 1;
   bt_gen_start_time_ = std::chrono::steady_clock::now();
+  builder_unavailable_since_.reset();
+}
+
+bool LLMBTOrchestrator::llm_request_lost(
+  const rclcpp::ClientBase::SharedPtr & client, std::string & reason)
+{
+  const auto now_steady = std::chrono::steady_clock::now();
+  if (llm_generation_timeout_sec_ > 0.0 &&
+    std::chrono::duration<double>(now_steady - bt_gen_start_time_).count() > llm_generation_timeout_sec_)
+  {
+    reason = "the BT builder did not answer within llm_generation_timeout_sec (" +
+      std::to_string(llm_generation_timeout_sec_) + " s)";
+    return true;
+  }
+  if (client->service_is_ready()) {
+    builder_unavailable_since_.reset();
+    return false;
+  }
+  if (!builder_unavailable_since_) {
+    builder_unavailable_since_ = now_steady;
+  }
+  if (std::chrono::duration<double>(now_steady - *builder_unavailable_since_).count() > 10.0) {
+    reason = "the BT builder's service disappeared while the request was pending (did the node die?)";
+    return true;
+  }
+  return false;
 }
 
 int LLMBTOrchestrator::append_dynamic_blackboard_vars(std::string & yaml_text) const
@@ -799,6 +1202,22 @@ int LLMBTOrchestrator::append_dynamic_blackboard_vars(std::string & yaml_text) c
         }
   }
 
+  // Generate first: the keys that the earlier steps declare as outputs (they will have run)
+  if (pregen_active_) {
+    std::set<std::string> listed;
+    for (const auto & key : keys) {
+      listed.insert(normalize_blackboard_key(std::string{key.data(), key.size()}));
+    }
+    for (std::size_t i = 0; i < mission_step_ && i < mission_objectives_.size(); ++i) {
+      for (const auto & key : objective_keys(mission_objectives_[i], "outputs")) {
+        if (listed.insert(key).second) {
+          vars_block += "\n  - " + key;
+          injected_count++;
+        }
+      }
+    }
+  }
+
   if (injected_count > 0) {
     yaml_text += vars_block;
   }
@@ -810,6 +1229,21 @@ int LLMBTOrchestrator::append_dynamic_blackboard_vars(std::string & yaml_text) c
 
 void LLMBTOrchestrator::request_generate_bt()
 {
+  // Given trees (reference trees, mutants, trees of other generators): <dir>/<objective name>.xml
+  // replaces the BT builder's answer; the rest (loading, execution, traces, metrics) is the same
+  if (!given_trees_dir_.empty()) {
+    initialize_attempt_tracking("generate");
+    auto response = std::make_shared<llm_bt_builder::srv::GenerateBT::Response>();
+    const auto path = std::filesystem::path(given_trees_dir_) / (objective_name_ + ".xml");
+    response->bt_xml = load_file(path.string());
+    response->success = !response->bt_xml.empty();
+    response->message = response->success ? "given tree " + path.string() :
+      "no given tree " + path.string();
+    given_result_ = response;
+    bt_gen_start_time_ = std::chrono::steady_clock::now();
+    transition_to(State::GENERATING_BT);
+    return;
+  }
   while (rclcpp::ok() && !generate_bt_client_->wait_for_service(std::chrono::seconds(1))) {
     RCLCPP_WARN(get_logger(), "Waiting for generate_bt service...");
   }
@@ -909,25 +1343,62 @@ void LLMBTOrchestrator::control_cycle()
 
     case State::GENERATING_BT:
     {
+      llm_bt_builder::srv::GenerateBT::Response::SharedPtr result;
+      if (given_result_) {
+        result = given_result_;
+        given_result_.reset();
+      } else {
       if (!gen_bt_future_.has_value()) {
         break;
       }
       if (gen_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        std::string lost_reason;
+        if (llm_request_lost(generate_bt_client_, lost_reason)) {
+          RCLCPP_ERROR(get_logger(), "generate_bt: %s", lost_reason.c_str());
+          gen_bt_future_.reset();
+          auto & attempt = run_metrics_.attempts[*current_attempt_index_];
+          attempt.status = "GENERATION_FAILED";
+          attempt.failure_reason = lost_reason;
+          last_failure_reason_ = lost_reason;
+          if (pregen_active_) {
+            pregen_active_ = false;
+            last_failure_code_ = "generation_failed_before_execution";
+            attempt.failure_code = last_failure_code_;
+            last_failure_reason_ = "no valid tree before execution (no step has run): " + lost_reason;
+          }
+          publish_status("BT_GENERATION_FAILED");
+          transition_to(State::FAILED);
+        }
         break;
       }
 
-      auto result = gen_bt_future_->get();
+      result = gen_bt_future_->get();
       gen_bt_future_.reset();
+      }
       auto & attempt = run_metrics_.attempts[*current_attempt_index_];
-      attempt.generation_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - bt_gen_start_time_).count();
-      run_metrics_.total_generation_time_ms += attempt.generation_time_ms;
+      if (pregen_delivery_) {
+        pregen_delivery_ = false;  // generated before execution: its time was measured then
+      } else {
+        attempt.generation_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - bt_gen_start_time_).count();
+        run_metrics_.total_generation_time_ms += attempt.generation_time_ms;
+      }
+      if (pregen_active_) {
+        finish_pregeneration_step(result);  // generate first: keep the tree, generate the next
+        break;
+      }
 
       if (!result->success || result->bt_xml.empty()) {
-        attempt.status = "GENERATION_FAILED";
+        // The builder declines a request the robot cannot fulfil ("DECLINED: missing=...")
+        const bool declined = result->message.rfind("DECLINED", 0) == 0;
+        attempt.status = declined ? "DECLINED" : "GENERATION_FAILED";
         attempt.failure_reason = result->message;
+        if (declined) {
+          attempt.failure_code = "declined";
+          last_failure_code_ = "declined";
+        }
         last_failure_reason_ = result->message.empty() ? "BT generation returned empty XML" : result->message;
-        publish_status("BT_GENERATION_FAILED");
+        publish_status(declined ? "BT_DECLINED" : "BT_GENERATION_FAILED");
         transition_to(State::FAILED);
         break;
       }
@@ -941,13 +1412,24 @@ void LLMBTOrchestrator::control_cycle()
         runner->set_bt(result->bt_xml);
         last_status_.clear();
         status_received_.clear();
-        activate_runner("llm_bt_runner");
+        if (!activate_runner("llm_bt_runner")) {
+          // The runner could not build the tree (e.g. a port the node does not declare): a load
+          // failure with its reason, so that the BT builder can fix the tree (fix_bt)
+          throw std::runtime_error(runner->activation_error().empty() ?
+            std::string("the runner could not be activated") : runner->activation_error());
+        }
         tree_loaded_ = true;
         step_start_time_ = now();
+        snapshot_output_sequences();
         transition_to(State::EXECUTING_BT);
       } catch (const std::exception & e) {
         attempt.status = "LOAD_FAILED";
         attempt.failure_reason = e.what();
+        // A tree that cannot be built is a configuration error of the tree (local: fix_bt), not
+        // whatever code the previous attempt left
+        attempt.failure_code = "bt_config_error";
+        attempt.total_attempt_time_ms = attempt.generation_time_ms;
+        last_failure_code_ = attempt.failure_code;
         last_failure_reason_ = std::string("createTreeFromText exception: ") + e.what();
         if (is_local_error(last_failure_reason_) && bt_regeneration_count_ < max_bt_regenerations_) {
           request_fix_bt(last_bt_xml_, last_failure_reason_);
@@ -965,6 +1447,17 @@ void LLMBTOrchestrator::control_cycle()
         break;
       }
       if (fix_bt_future_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        std::string lost_reason;
+        if (llm_request_lost(fix_bt_client_, lost_reason)) {
+          RCLCPP_ERROR(get_logger(), "fix_bt: %s", lost_reason.c_str());
+          fix_bt_future_.reset();
+          auto & attempt = run_metrics_.attempts[*current_attempt_index_];
+          attempt.status = "FIX_FAILED";
+          attempt.failure_reason = lost_reason;
+          last_failure_reason_ = lost_reason;
+          publish_status("BT_FIX_FAILED");
+          transition_to(State::FAILED);
+        }
         break;
       }
 
@@ -987,19 +1480,31 @@ void LLMBTOrchestrator::control_cycle()
 
       try {
         last_bt_xml_ = result->bt_xml;
+        analyze_bt_xml(result->bt_xml, attempt);  // the fixed tree's size, as for generated ones
         attempt.bt_xml_file = save_bt_xml(result->bt_xml, attempt.attempt_id, attempt.attempt_type);
         auto it = runners_.find("llm_bt_runner");
         auto runner = std::dynamic_pointer_cast<BehaviorRunner>(it->second);
         runner->set_bt(result->bt_xml);
         last_status_.clear();
         status_received_.clear();
-        activate_runner("llm_bt_runner");
+        if (!activate_runner("llm_bt_runner")) {
+          // The runner could not build the tree (e.g. a port the node does not declare): a load
+          // failure with its reason, so that the BT builder can fix the tree (fix_bt)
+          throw std::runtime_error(runner->activation_error().empty() ?
+            std::string("the runner could not be activated") : runner->activation_error());
+        }
         tree_loaded_ = true;
         step_start_time_ = now();
+        snapshot_output_sequences();
         transition_to(State::EXECUTING_BT);
       } catch (const std::exception & e) {
         attempt.status = "LOAD_FAILED";
         attempt.failure_reason = e.what();
+        // A tree that cannot be built is a configuration error of the tree (local: fix_bt), not
+        // whatever code the previous attempt left
+        attempt.failure_code = "bt_config_error";
+        attempt.total_attempt_time_ms = attempt.generation_time_ms;
+        last_failure_code_ = attempt.failure_code;
         last_failure_reason_ = std::string("createTreeFromText exception: ") + e.what();
         if (is_local_error(last_failure_reason_) && bt_regeneration_count_ < max_bt_regenerations_) {
           request_fix_bt(last_bt_xml_, last_failure_reason_);
@@ -1026,6 +1531,7 @@ void LLMBTOrchestrator::control_cycle()
         attempt.status = "TIMEOUT";
         attempt.failure_code = "timeout";
         attempt.failure_reason = "Behavior tree execution timed out";
+        attempt.total_attempt_time_ms = attempt.generation_time_ms + attempt.execution_time_ms;
         run_metrics_.total_execution_time_ms += attempt.execution_time_ms;
         last_failure_code_ = attempt.failure_code;
         last_failure_reason_ = attempt.failure_reason;
@@ -1038,9 +1544,26 @@ void LLMBTOrchestrator::control_cycle()
         break;
       }
 
-      const bool success = (last_status_ == "SUCCESS");
+      bool success = (last_status_ == "SUCCESS");
+      // Runtime contract: SUCCESS without a declared output written by this tree fails the step
+      const std::vector<std::string> unmet = (success && runtime_contract_) ?
+        unwritten_outputs() : std::vector<std::string>{};
+      if (!unmet.empty()) {
+        success = false;
+      }
       if (!success) {
         last_failure_reason_ = collect_failure_reason();
+      }
+      if (!unmet.empty()) {
+        std::string keys;
+        for (const auto & key : unmet) {
+          keys += (keys.empty() ? "" : ", ") + key;
+        }
+        last_failure_code_ = "contract_unmet";
+        last_failure_reason_ = "contract_unmet: the tree returned SUCCESS without writing its "
+          "declared output(s) [" + keys + "]. Every path that ends in SUCCESS must write them "
+          "(bound to an output port of a node that succeeds on that path).";
+        RCLCPP_WARN(get_logger(), "%s", last_failure_reason_.c_str());
       }
 
       attempt.execution_time_ms = (now() - step_start_time_).to_chrono<std::chrono::milliseconds>().count();
@@ -1137,6 +1660,11 @@ bool LLMBTOrchestrator::is_local_error(const std::string & reason) const
   }
 
   if (last_failure_code_ == "bt_config_error") {
+    return true;
+  }
+
+  // A tree that succeeded without writing a declared output (runtime contract): fix_bt can bind it
+  if (last_failure_code_ == "contract_unmet") {
     return true;
   }
 
@@ -1297,10 +1825,205 @@ void LLMBTOrchestrator::transition_to(State new_state)
     if (use_episodic_memory_) {
       save_episodic_memory();
     }
+    if (!mission_objectives_.empty() && record_mission_step(new_state == State::SUCCESS)) {
+      return;  // the next step of the mission has started
+    }
     if (shutdown_on_completion_ && rclcpp::ok()) {
       rclcpp::shutdown();
     }
   }
+}
+
+bool LLMBTOrchestrator::check_mission_contract()
+{
+  if (mission_objectives_.empty()) {
+    return true;
+  }
+  std::set<std::string> available;
+  for (const auto & key : blackboard_->getKeys()) {
+    available.emplace(key.data(), key.size());
+  }
+  std::vector<std::string> feasible_steps;
+  for (std::size_t i = 0; i < mission_objectives_.size(); ++i) {
+    YAML::Node objective;
+    try {
+      const YAML::Node root = YAML::LoadFile(mission_objectives_[i]);
+      objective = root["objective"] ? root["objective"] : root;
+    } catch (const std::exception & e) {
+      last_failure_reason_ = "Could not read mission step " + mission_objectives_[i] + ": " + e.what();
+      return false;
+    }
+    const std::string name = objective["name"] ? objective["name"].as<std::string>() :
+      std::filesystem::path(mission_objectives_[i]).stem().string();
+    if (objective["inputs"] && objective["inputs"].IsSequence()) {
+      for (const auto & input : objective["inputs"]) {
+        if (!input.IsScalar()) {
+          continue;
+        }
+        const std::string key = normalize_blackboard_key(input.as<std::string>());
+        if (!key.empty() && !available.count(key)) {
+          std::string feasible;
+          for (const auto & f : feasible_steps) {
+            feasible += (feasible.empty() ? "" : ", ") + f;
+          }
+          last_failure_code_ = "declined_data_flow";
+          last_failure_reason_ = "DECLINED: missing=step " + std::to_string(i) + " (" + name +
+            ") needs '" + key + "', which neither the initial blackboard nor any earlier step " +
+            "provides; feasible_part=" + (feasible.empty() ? std::string("none") : feasible);
+          RCLCPP_WARN(get_logger(), "%s", last_failure_reason_.c_str());
+          return false;
+        }
+      }
+    }
+    if (objective["outputs"] && objective["outputs"].IsSequence()) {
+      for (const auto & output : objective["outputs"]) {
+        if (output.IsScalar()) {
+          available.insert(normalize_blackboard_key(output.as<std::string>()));
+        }
+      }
+    }
+    feasible_steps.push_back(name);
+  }
+  return true;
+}
+
+bool LLMBTOrchestrator::record_mission_step(bool success)
+{
+  const std::size_t n_steps = mission_objectives_.size();
+  const bool has_next = success && mission_step_ + 1 < n_steps;
+  const bool mission_done = !has_next;
+  // Generate first: a step that failed while running invalidates the later steps that depend on it
+  const std::string invalidated = (!success && pregen_done_) ? invalidated_steps() : std::string{};
+  if (!invalidated.empty()) {
+    RCLCPP_WARN(get_logger(), "MISSION_INVALIDATED_STEPS %s: %s", mission_name_.c_str(),
+      invalidated.c_str());
+  }
+
+  if (save_exec_) {
+    const auto path = std::filesystem::path(exec_base_dir_) / "mission_summary.csv";
+    const bool exists = std::filesystem::exists(path);
+    // The column invalidated_steps only with generate first (or when the file already has it)
+    bool with_invalidated = generate_first_;
+    if (exists) {
+      std::ifstream in(path);
+      std::string header;
+      std::getline(in, header);
+      with_invalidated = header.find(",invalidated_steps") != std::string::npos;
+    }
+    const std::string extra_empty = with_invalidated ? "," : "";
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path, std::ios::app);
+    if (out.is_open()) {
+      if (!exists) {
+        out << "mission,step,n_steps,objective_path,objective_name,status,failure_code,"
+            << "failure_reason,exec_run_dir" << (with_invalidated ? ",invalidated_steps" : "") << "\n";
+      }
+      out << csv_escape(mission_name_) << "," << mission_step_ << "," << n_steps << ","
+          << csv_escape(objective_path_) << "," << csv_escape(objective_name_) << ","
+          << (success ? "SUCCESS" : "FAILED") << "," << csv_escape(last_failure_code_) << ","
+          << csv_escape(last_failure_reason_) << "," << csv_escape(exec_run_dir_.string())
+          << extra_empty << "\n";
+      if (mission_done) {
+        // One row for the whole mission: it succeeds only if its last step did and all ran.
+        const bool mission_ok = success && mission_step_ + 1 == n_steps;
+        out << csv_escape(mission_name_) << ",mission," << n_steps << ",,,"
+            << (mission_ok ? "SUCCESS" : "FAILED") << ","
+            << csv_escape(mission_ok ? "" : last_failure_code_) << ","
+            << csv_escape(mission_ok ? "" : ("step " + std::to_string(mission_step_) + ": " +
+          last_failure_reason_)) << ",";
+        if (with_invalidated) {
+          out << "," << csv_escape(invalidated);
+        }
+        out << "\n";
+      }
+    }
+  }
+
+  RCLCPP_INFO(get_logger(), "MISSION %s step %zu/%zu (%s): %s", mission_name_.c_str(),
+    mission_step_ + 1, n_steps, objective_name_.c_str(), success ? "SUCCESS" : "FAILED");
+  if (!has_next) {
+    RCLCPP_INFO(get_logger(), "MISSION_RESULT %s: %s", mission_name_.c_str(),
+      (success && mission_step_ + 1 == n_steps) ? "SUCCESS" : "FAILED");
+    return false;
+  }
+
+  ++mission_step_;
+  objective_path_ = mission_objectives_[mission_step_];
+  objective_name_.clear();
+  objective_description_.clear();
+  task_name_ = mission_name_ + "__s" + std::to_string(mission_step_) + "_" +
+    std::filesystem::path(objective_path_).stem().string();
+  exec_run_dir_.clear();
+  start_run();
+  return true;
+}
+
+std::string LLMBTOrchestrator::invalidated_steps() const
+{
+  // The later steps whose declared inputs come from the failed step, or from a step invalidated
+  // in turn: the provider of a key is the last earlier step that declares it as an output
+  const std::size_t n_steps = mission_objectives_.size();
+  std::vector<std::vector<std::string>> outputs(n_steps);
+  std::vector<bool> invalid(n_steps, false);
+  for (std::size_t i = 0; i < n_steps; ++i) {
+    outputs[i] = objective_keys(mission_objectives_[i], "outputs");
+  }
+  if (mission_step_ >= n_steps) {
+    return {};
+  }
+  invalid[mission_step_] = true;
+  std::string text;
+  for (std::size_t j = mission_step_ + 1; j < n_steps; ++j) {
+    std::string name;
+    const auto inputs = objective_keys(mission_objectives_[j], "inputs", &name);
+    for (const auto & key : inputs) {
+      for (std::size_t k = j; k-- > 0; ) {
+        if (std::find(outputs[k].begin(), outputs[k].end(), key) != outputs[k].end()) {
+          invalid[j] = invalid[j] || invalid[k];
+          break;
+        }
+      }
+    }
+    if (invalid[j]) {
+      text += (text.empty() ? "" : ";") + std::to_string(j) + ":" + name;
+    }
+  }
+  return text;
+}
+
+void LLMBTOrchestrator::snapshot_output_sequences()
+{
+  output_sequence_at_start_.clear();
+  if (!runtime_contract_) {
+    return;
+  }
+  for (const auto & key : objective_outputs_) {
+    if (auto entry = blackboard_->getEntry(key)) {
+      std::scoped_lock lock(entry->entry_mutex);
+      output_sequence_at_start_[key] = entry->sequence_id;
+    }
+  }
+}
+
+std::vector<std::string> LLMBTOrchestrator::unwritten_outputs() const
+{
+  // A declared output counts as written when its entry has a value written after the tree started
+  std::vector<std::string> unmet;
+  for (const auto & key : objective_outputs_) {
+    auto entry = blackboard_->getEntry(key);
+    if (!entry) {
+      unmet.push_back(key);
+      continue;
+    }
+    std::scoped_lock lock(entry->entry_mutex);
+    const auto before = output_sequence_at_start_.find(key);
+    if (entry->value.empty() ||
+      (before != output_sequence_at_start_.end() && before->second == entry->sequence_id))
+    {
+      unmet.push_back(key);
+    }
+  }
+  return unmet;
 }
 
 void LLMBTOrchestrator::write_metrics_files()

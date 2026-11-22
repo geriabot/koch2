@@ -2,7 +2,9 @@
 #define KOCH2__LLM_BT_ORCHESTRATOR_HPP_
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -188,6 +190,9 @@ private:
   int append_dynamic_blackboard_vars(std::string & yaml_text) const;
   void request_generate_bt();
   void request_fix_bt(const std::string & broken_xml, const std::string & error_msg);
+  // The pending generate_bt/fix_bt request can no longer be answered: the BT builder's service
+  // disappeared for more than 10 s, or llm_generation_timeout_sec (0: none) passed. Sets reason
+  bool llm_request_lost(const rclcpp::ClientBase::SharedPtr & client, std::string & reason);
   std::string collect_failure_reason();
 
   /// Return true if the failure reason describes a BT structural/config error that the LLM can fix.
@@ -273,10 +278,58 @@ private:
   std::string last_bt_xml_;
   std::vector<std::string> initial_blackboard_keys_;
 
+  // Mission mode: several objectives (one tree each) run in order on one blackboard, so that each
+  // tree reads what the earlier ones wrote. The mission succeeds when every step does.
+  std::vector<std::string> mission_objectives_;
+  std::size_t mission_step_{0};
+  std::string mission_name_;
+  bool record_mission_step(bool success);  // true when a next step was started
+  // Static check of the mission's data contract before anything runs: every key a step reads is
+  // in the initial blackboard or declared as an output of an earlier step. Otherwise the mission is
+  // declined, naming the missing value and the steps that could still run.
+  bool mission_precheck_{true};
+  bool check_mission_contract();
+  // Given trees instead of the BT builder (reference trees, mutants, other generators' trees)
+  std::string given_trees_dir_;
+  llm_bt_builder::srv::GenerateBT::Response::SharedPtr given_result_;
+
+  // Generate first (llm_mission_generate_first, off by default): the trees of ALL the steps are
+  // generated (with the BT builder's validation and repair) before any step runs; a step without a
+  // valid tree fails the mission before the robot moves. Then the mission's data contract is
+  // checked on the actual trees (bt_contract.py of llm_bt_builder), and the steps run in order.
+  // On an execution failure, fix_bt regenerates only the failed step's tree; when the step finally
+  // fails, the later steps whose inputs depended on it are reported (invalidated_steps).
+  struct PregeneratedStep
+  {
+    std::string bt_xml;
+    std::string message;
+    RunMetrics metrics;                   // the generation attempt and its time
+    std::filesystem::path exec_run_dir;
+  };
+  bool generate_first_{false};
+  bool pregen_active_{false};    // generating the trees of the steps, nothing has run
+  bool pregen_done_{false};      // every tree generated and checked: the steps run
+  bool pregen_delivery_{false};  // the next GENERATING_BT result is a tree generated before
+  std::vector<PregeneratedStep> pregen_steps_;
+  void start_pregeneration_step();
+  void finish_pregeneration_step(const llm_bt_builder::srv::GenerateBT::Response::SharedPtr & result);
+  bool check_generated_mission_contract();
+  std::string invalidated_steps() const;
+
+  // Runtime contract (llm_mission_runtime_contract, off by default): a tree that returns SUCCESS
+  // without writing a declared output fails its step (failure_code contract_unmet)
+  bool runtime_contract_{false};
+  std::vector<std::string> objective_outputs_;
+  std::map<std::string, std::uint64_t> output_sequence_at_start_;
+  void snapshot_output_sequences();
+  std::vector<std::string> unwritten_outputs() const;
+
   RunMetrics run_metrics_;
   std::optional<std::size_t> current_attempt_index_;
   std::chrono::steady_clock::time_point run_start_time_;
   std::chrono::steady_clock::time_point bt_gen_start_time_;
+  std::optional<std::chrono::steady_clock::time_point> builder_unavailable_since_;
+  double llm_generation_timeout_sec_ = 0.0;
   rclcpp::Time step_start_time_;
 
   std::string exec_base_dir_{"exec/bt_generation_eval"};
