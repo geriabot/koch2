@@ -15,6 +15,8 @@
 
 #include "koch2/behavior_runner.hpp"
 
+#include <cstdlib>
+
 #include <fstream>
 #include <iterator>
 #include <regex>
@@ -193,6 +195,7 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
     // Loggers must stop observing the old tree before it is replaced.
     groot_publisher_.reset();
     cout_logger_.reset();
+    trace_logger_.reset();
     try {
       if (!bt_xml_.empty()) {
         tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
@@ -227,6 +230,14 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
   }
 
   cout_logger_ = std::make_unique<BT::StdCoutLogger>(tree_);
+  if (const char * trace_file = std::getenv("BT_TRACE_FILE"); trace_file && *trace_file) {
+    std::string label;
+    try {
+      label = blackboard_->get<std::string>("llm_trace_label");
+    } catch (...) {
+    }
+    trace_logger_ = std::make_unique<koch2::TraceLogger>(tree_, trace_file, label);
+  }
   if (get_parameter("enable_groot_monitoring").as_bool()) {
     const auto port = get_parameter("groot_port").as_int();
     try {

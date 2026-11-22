@@ -29,6 +29,7 @@
 #include "behaviortree_cpp/bt_factory.h"
 #include "behaviortree_cpp/loggers/bt_cout_logger.h"
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
+#include "koch2/trace_logger.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 namespace koch2
@@ -131,6 +132,7 @@ private:
   std::mutex tree_mutex_;
   std::unique_ptr<BT::StdCoutLogger> cout_logger_;
   std::unique_ptr<BT::Groot2Publisher> groot_publisher_;
+  std::unique_ptr<koch2::TraceLogger> trace_logger_;  // BT_TRACE_FILE
   BT::NodeStatus status_;
   
   std::string xml_path_;
