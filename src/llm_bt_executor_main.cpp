@@ -9,6 +9,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "koch2/llm_bt_orchestrator.hpp"
+#include "koch2/time_scale.hpp"
 
 namespace
 {
@@ -39,7 +40,10 @@ void print_usage()
     << "                                 mission before the robot moves.\n"
     << "  --runtime-contract             A tree that returns SUCCESS without writing a declared\n"
     << "                                 output fails its step (contract_unmet).\n"
-    << "  --no-save-exec                 Disable metric and artifact persistence.\n";
+    << "  --no-save-exec                 Disable metric and artifact persistence.\n"
+    << "  --time-scale <k>               Time compression (test doubles): Timeout/Delay/Sleep,\n"
+    << "                                 tick periods, the step timeout and the doubles' clock\n"
+    << "                                 k times faster (sets BT_TIME_SCALE; default 1 = real time).\n";
 }
 
 }  // namespace
@@ -113,6 +117,15 @@ int main(int argc, char ** argv)
       generate_first = true;
     } else if (arg == "--runtime-contract") {
       runtime_contract = true;
+    } else if (arg == "--time-scale") {
+      // The environment variable is the one place every part reads (koch2 and the doubles'
+      // plugin, loaded in this process later)
+      const std::string value = require_value(arg);
+      if (koch2::parse_time_scale(value.c_str()) != std::strtod(value.c_str(), nullptr)) {
+        std::cerr << "Invalid --time-scale " << value << " (a number > 0)\n";
+        return 1;
+      }
+      setenv("BT_TIME_SCALE", value.c_str(), 1);
     } else if (arg == "--no-save-exec") {
       save_exec = false;
     } else if (arg == "--help" || arg == "-h") {

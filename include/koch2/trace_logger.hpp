@@ -32,11 +32,15 @@ namespace koch2
 /// condition) when it starts and when it ends, with its input ports ({key, value}: the key it reads,
 /// if any, and the value) and, at the end, the values its output ports wrote.
 /// Enabled when the environment variable BT_TRACE_FILE names a file (lines are appended).
+/// Under time compression (BT_TIME_SCALE=k != 1) every line also carries "k": its times ("t", wall
+/// clock, ms) then stand for k times as much simulated time (the trace oracle scales its tick window).
 class TraceLogger : public BT::StatusChangeLogger
 {
 public:
-  TraceLogger(const BT::Tree & tree, const std::string & path, const std::string & label)
-  : BT::StatusChangeLogger(), out_(path, std::ios::app), label_(label)
+  TraceLogger(
+    const BT::Tree & tree, const std::string & path, const std::string & label,
+    double time_scale = 1.0)
+  : BT::StatusChangeLogger(), out_(path, std::ios::app), label_(label), time_scale_(time_scale)
   {
     enableTransitionToIdle(true);   // to see halts (RUNNING -> IDLE)
     subscribeToTreeChanges(tree.rootNode());
@@ -150,7 +154,11 @@ private:
     std::ostringstream line;
     const auto t = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
-    line << "{\"t\":" << t << ",\"tree\":\"" << escape(label_) << "\",\"event\":\"" << event
+    line << "{\"t\":" << t;
+    if (time_scale_ != 1.0) {
+      line << ",\"k\":" << time_scale_;
+    }
+    line << ",\"tree\":\"" << escape(label_) << "\",\"event\":\"" << event
          << "\",\"node\":\"" << escape(node.registrationName()) << "\",\"name\":\""
          << escape(node.name()) << "\",\"status\":\"" << BT::toStr(status) << "\",\"inputs\":{";
     bool first = true;
@@ -195,6 +203,7 @@ private:
 
   std::ofstream out_;
   std::string label_;
+  double time_scale_{1.0};
   std::mutex mutex_;
 };
 

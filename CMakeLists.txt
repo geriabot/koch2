@@ -418,6 +418,8 @@ if(BUILD_TESTING)
       behaviortree_cpp::behaviortree_cpp ament_index_cpp::ament_index_cpp ${std_msgs_TARGETS})
   endif()
   ament_add_gtest(test_episodic_memory_files test/base/test_episodic_memory_files.cpp)
+  # Time compression (BT_TIME_SCALE): the scaling of a tree's time ports (standard library only)
+  ament_add_gtest(test_time_scale test/base/test_time_scale.cpp)
 
   # test_plan_executor runs the trees of a directory (with a plugin that has no dependencies)
   cmake_language(CALL ${_interpretation_add_pytest} test_test_plan_executor

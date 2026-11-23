@@ -18,6 +18,7 @@
 #include "ament_index_cpp/get_package_prefix.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "koch2/orchestrator_factory.hpp"
+#include "koch2/time_scale.hpp"
 #include "koch2/yaml_utils.hpp"
 #include "yaml-cpp/yaml.h"
 
@@ -171,6 +172,14 @@ LLMBTOrchestrator::LLMBTOrchestrator(BT::Blackboard::Ptr blackboard)
     bt_timeout_sec_ = blackboard_->get<double>("llm_timeout_sec");
   } catch (...) {
     bt_timeout_sec_ = 30.0;
+  }
+  // Time compression (BT_TIME_SCALE=k): the step's execution timeout in simulated seconds, k times
+  // shorter on the wall clock (the generation timeout is the LLM's: not scaled)
+  if (const double k = time_scale_from_env(); k != 1.0) {
+    RCLCPP_INFO(get_logger(), "BT_TIME_SCALE=%g: step timeout %.1f s -> %.2f s (wall clock); "
+      "Timeout/Delay/Sleep ports, tick periods and the test doubles' clock scaled alike",
+      k, bt_timeout_sec_, bt_timeout_sec_ / k);
+    bt_timeout_sec_ /= k;
   }
 
   try {

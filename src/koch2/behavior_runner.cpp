@@ -14,6 +14,7 @@
 
 
 #include "koch2/behavior_runner.hpp"
+#include "koch2/time_scale.hpp"
 
 #include <cstdlib>
 
@@ -196,12 +197,42 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
     groot_publisher_.reset();
     cout_logger_.reset();
     trace_logger_.reset();
+    // Time compression (BT_TIME_SCALE=k, koch2/time_scale.hpp): the built-in nodes that measure
+    // the wall clock (Timeout, Delay, Sleep) get their time ports divided by k in the copy that is
+    // built; bt_xml_ (the tree given or generated, saved as it is) is not changed. k = 1: as before
+    const double time_scale = time_scale_from_env();
+    auto scaled_xml = [&](const std::string & xml) {
+        const auto scaled = scale_bt_xml_times(xml, time_scale);
+        std::string not_scaled;
+        for (const auto & item : scaled.not_scaled) {
+          not_scaled += (not_scaled.empty() ? "" : ", ") + item;
+        }
+        RCLCPP_INFO(get_logger(),
+          "BT_TIME_SCALE=%g: %d time port(s) of Timeout/Delay/Sleep divided by %g%s%s",
+          time_scale, scaled.scaled, time_scale,
+          not_scaled.empty() ? "" : "; NOT scaled (not a literal): ", not_scaled.c_str());
+        return scaled.xml;
+      };
     try {
       if (!bt_xml_.empty()) {
-        tree_ = factory.createTreeFromText(bt_xml_, blackboard_);
+        tree_ = factory.createTreeFromText(
+          time_scale == 1.0 ? bt_xml_ : scaled_xml(bt_xml_), blackboard_);
         RCLCPP_DEBUG(get_logger(), "BT created from XML string");
       } else {
-        tree_ = factory.createTreeFromFile(xml_file, blackboard_);
+        std::string file_xml;
+        if (time_scale != 1.0) {
+          std::ifstream in(xml_file);
+          file_xml.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+        if (time_scale != 1.0 && !file_xml.empty() && file_xml.find("<include") == std::string::npos) {
+          tree_ = factory.createTreeFromText(scaled_xml(file_xml), blackboard_);
+        } else {
+          if (time_scale != 1.0) {
+            RCLCPP_WARN(get_logger(), "BT_TIME_SCALE=%g: the tree of '%s' is NOT scaled (it "
+              "includes other files, or could not be read)", time_scale, xml_file.c_str());
+          }
+          tree_ = factory.createTreeFromFile(xml_file, blackboard_);
+        }
         RCLCPP_DEBUG(get_logger(), "BT created from XML");
       }
     } catch (const std::exception & e) {
@@ -236,7 +267,8 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
       label = blackboard_->get<std::string>("llm_trace_label");
     } catch (...) {
     }
-    trace_logger_ = std::make_unique<koch2::TraceLogger>(tree_, trace_file, label);
+    trace_logger_ = std::make_unique<koch2::TraceLogger>(tree_, trace_file, label,
+        time_scale_from_env());
   }
   if (get_parameter("enable_groot_monitoring").as_bool()) {
     const auto port = get_parameter("groot_port").as_int();
@@ -254,11 +286,13 @@ BehaviorRunner::on_activate(const rclcpp_lifecycle::State & /* previous_state */
 
   status_pub_->on_activate();
 
+  // Time compression (BT_TIME_SCALE=k): k times more ticks per second, the same per simulated second
+  const int tick_period_ms = scale_period_ms(control_cycle_period_ms_, time_scale_from_env());
   timer_ = create_wall_timer(
-    std::chrono::milliseconds(control_cycle_period_ms_),
+    std::chrono::milliseconds(tick_period_ms),
     std::bind(&BehaviorRunner::control_cycle, this));
 
-  RCLCPP_INFO(get_logger(), "Timer created with period %dms", control_cycle_period_ms_);
+  RCLCPP_INFO(get_logger(), "Timer created with period %dms", tick_period_ms);
 
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }

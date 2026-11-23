@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "koch2/llm_plan_orchestrator.hpp"
+#include "koch2/time_scale.hpp"
 #include "koch2/yaml_utils.hpp"
 
 #include <chrono>
@@ -53,6 +54,8 @@ LLMPlanOrchestrator::LLMPlanOrchestrator(BT::Blackboard::Ptr blackboard)
   } catch (...) {
     bt_timeout_sec_ = 30.0;
   }
+  // Time compression (BT_TIME_SCALE=k, koch2/time_scale.hpp): the step timeout k times shorter
+  bt_timeout_sec_ /= time_scale_from_env();
   try {
     capabilities_yaml_ = blackboard_->get<std::string>("llm_capabilities_yaml");
   } catch (...) {}

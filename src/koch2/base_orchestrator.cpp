@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "koch2/base_orchestrator.hpp"
+#include "koch2/time_scale.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
 
@@ -86,8 +87,9 @@ BaseOrchestrator::on_activate(const rclcpp_lifecycle::State & previous_state)
   RCLCPP_INFO(get_logger(), "BaseOrchestrator activating from %s", previous_state.label().c_str());
   
   // Create and start control cycle timer
+  // Time compression (BT_TIME_SCALE=k, koch2/time_scale.hpp): the control cycle k times faster
   timer_ = create_wall_timer(
-    std::chrono::milliseconds(control_cycle_rate_ms_),
+    std::chrono::milliseconds(scale_period_ms(control_cycle_rate_ms_, time_scale_from_env())),
     std::bind(&BaseOrchestrator::control_cycle, this));
   
   started_ = true;
