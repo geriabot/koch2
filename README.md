@@ -554,17 +554,17 @@ for the later steps. The mission succeeds when every step does; the first step t
 ```bash
 ros2 run koch2 llm_bt_executor -- \
   --objective step1.yaml --objective step2.yaml --objective step3.yaml \
-  --task-name my_mission --generate-first --runtime-contract
+  --task-name my_mission --runtime-contract
 ```
 
 | Option | Default | Effect |
 |---|---|---|
 | (default) | on | Before anything runs, the declared contract is checked: every input of a step must be in the initial blackboard (`--blackboard-seed`) or an output of an earlier step. Otherwise the mission is declined (`declined_data_flow`), naming the missing key and the steps that could still run. `--no-mission-precheck` disables it. |
-| `--generate-first` | off | The trees of all the steps are generated, each with the tree builder's validation and repair, before any step runs. A step that gets no valid tree, or whose request is declined, fails the mission before the robot moves (`generation_failed_before_execution`, or `declined`), and the summary names that step. The mission's contract is then checked on the actual trees (below); only then do the steps run, in order. |
+| (default; `--no-generate-first` disables it) | on | The trees of all the steps are generated, each with the tree builder's validation and repair, before any step runs. A step that gets no valid tree, or whose request is declined, fails the mission before the robot moves (`generation_failed_before_execution`, or `declined`), and the summary names that step. The mission's contract is then checked on the actual trees (below); only then do the steps run, in order. With `--no-generate-first`, each step's tree is generated just before the step runs, after the earlier steps (`--generate-first` is still accepted). |
 | `--runtime-contract` | off | A tree that returns SUCCESS without having written one of its declared outputs fails its step (`contract_unmet`). Without it, such a step passes. |
 | `--given-trees <dir>` | | `<dir>/<objective name>.xml` replaces the tree builder (reference trees, trees of other generators). |
 
-**The contract on the actual trees.** With `--generate-first`, the trees are checked by
+**The contract on the actual trees.** With generate-first (the default), the trees are checked by
 `bt_contract.py` of llm_bt_builder, on their control structure. Each step may count on the
 initial blackboard and on the outputs that the earlier steps declare (not on what their trees
 happen to write: the later trees depend on the contract of a step, not on its tree). In each tree,
@@ -577,11 +577,11 @@ analysis are documented in `bt_contract.py`. A violation fails the mission befor
 (`contract_check_error`). The files of the check (trees, request, report) are saved under
 `<exec_dir>/mission_contract/`.
 
-**Failures while running.** A step that fails while running is handled as without
-`--generate-first`: a local error is repaired with `fix_bt` (up to `--max-fixes`), which
+**Failures while running.** A step that fails while running is handled as with
+`--no-generate-first`: a local error is repaired with `fix_bt` (up to `--max-fixes`), which
 regenerates only that step's tree; the trees of the later steps stay as generated. A
 `contract_unmet` failure counts as local. When the step finally fails (a controlled abort, a
-timeout or the repairs exhausted), the mission stops, and with `--generate-first` the mission row
+timeout or the repairs exhausted), the mission stops, and with generate-first the mission row
 of `mission_summary.csv` lists in `invalidated_steps` the later steps whose declared inputs came
 from the failed step, directly or through another invalidated step (`<index>:<name>`, separated by
 `;`). The provider of a key is the last earlier step that declares it as an output. No
@@ -589,7 +589,7 @@ replanning is done.
 
 **Results.** `<exec_dir>/mission_summary.csv` has one row per step that ended and one row per
 mission (`step` = `mission`), with `status`, `failure_code` and `failure_reason`; the column
-`invalidated_steps` is present with `--generate-first`. Each step also has its own directory with
+`invalidated_steps` is present with generate-first. Each step also has its own directory with
 its attempts, as for a single objective ([BT_GENERATION_EVAL.md](BT_GENERATION_EVAL.md)).
 
 ## Interpretation (optional)

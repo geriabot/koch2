@@ -293,7 +293,7 @@ private:
   std::string given_trees_dir_;
   llm_bt_builder::srv::GenerateBT::Response::SharedPtr given_result_;
 
-  // Generate first (llm_mission_generate_first, off by default): the trees of ALL the steps are
+  // Generate first (llm_mission_generate_first, on by default): the trees of ALL the steps are
   // generated (with the BT builder's validation and repair) before any step runs; a step without a
   // valid tree fails the mission before the robot moves. Then the mission's data contract is
   // checked on the actual trees (bt_contract.py of llm_bt_builder), and the steps run in order.
@@ -306,7 +306,7 @@ private:
     RunMetrics metrics;                   // the generation attempt and its time
     std::filesystem::path exec_run_dir;
   };
-  bool generate_first_{false};
+  bool generate_first_{true};
   bool pregen_active_{false};    // generating the trees of the steps, nothing has run
   bool pregen_done_{false};      // every tree generated and checked: the steps run
   bool pregen_delivery_{false};  // the next GENERATING_BT result is a tree generated before

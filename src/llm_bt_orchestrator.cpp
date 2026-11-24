@@ -223,7 +223,7 @@ LLMBTOrchestrator::LLMBTOrchestrator(BT::Blackboard::Ptr blackboard)
   try {
     generate_first_ = blackboard_->get<bool>("llm_mission_generate_first");
   } catch (...) {
-    generate_first_ = false;
+    generate_first_ = true;
   }
 
   try {

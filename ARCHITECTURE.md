@@ -285,9 +285,9 @@ when the step succeeded. Each objective declares `inputs` and `outputs` (its dat
 1. `start_run()` of the first step loads the blackboard seed and, with `llm_mission_precheck`,
    checks the declared contract (`check_mission_contract()`: every input is in the initial
    blackboard or a declared output of an earlier step); otherwise the mission is declined.
-2. Without `llm_mission_generate_first`, each step's tree is generated when the step starts, after
+2. With `llm_mission_generate_first` false (`--no-generate-first`), each step's tree is generated when the step starts, after
    the earlier steps have run.
-3. With `llm_mission_generate_first`, the orchestrator first generates the trees of all the steps
+3. With `llm_mission_generate_first` (the default), the orchestrator first generates the trees of all the steps
    (`start_pregeneration_step()`, `finish_pregeneration_step()`; the same `GENERATING_BT` state,
    without running the trees). The builder of a later step is told, in
    `available_blackboard_vars`, the outputs that the earlier steps declare. A step without a valid
@@ -335,7 +335,7 @@ writes the trees and a request file and reads the JSON report of the script.
 | `llm_mission_objectives` | `[]` | `LLMBTOrchestrator` (mission mode: one objective per step) |
 | `llm_mission_precheck` | `true` | `LLMBTOrchestrator` |
 | `llm_given_trees_dir` | `""` | `LLMBTOrchestrator` |
-| `llm_mission_generate_first` | `false` | `LLMBTOrchestrator` |
+| `llm_mission_generate_first` | `true` | `LLMBTOrchestrator` |
 | `llm_mission_runtime_contract` | `false` | `LLMBTOrchestrator` |
 
 `mission_executor` fills the keys of the plan orchestrators from the YAML file

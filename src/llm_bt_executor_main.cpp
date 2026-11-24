@@ -35,9 +35,11 @@ void print_usage()
     << "  --use-episodic-memory          Enable storage and retrieval of episodic memory.\n"
     << "  --given-trees <dir>            Run <dir>/<objective name>.xml instead of generating.\n"
     << "  --no-mission-precheck          Do not check the mission's data contract before running.\n"
-    << "  --generate-first               Mission: generate (and check) every step's tree before\n"
-    << "                                 running any; a step without a valid tree fails the\n"
-    << "                                 mission before the robot moves.\n"
+    << "  --no-generate-first            Mission: generate each step's tree just before the step\n"
+    << "                                 runs. Default: every step's tree is generated (and the\n"
+    << "                                 mission's contract checked on the trees) before any step\n"
+    << "                                 runs; a step without a valid tree fails the mission before\n"
+    << "                                 the robot moves (--generate-first is accepted).\n"
     << "  --runtime-contract             A tree that returns SUCCESS without writing a declared\n"
     << "                                 output fails its step (contract_unmet).\n"
     << "  --no-save-exec                 Disable metric and artifact persistence.\n"
@@ -68,7 +70,7 @@ int main(int argc, char ** argv)
   bool use_episodic_memory = false;
   bool strict_objective_inputs = false;
   bool mission_precheck = true;
-  bool generate_first = false;
+  bool generate_first = true;
   bool runtime_contract = false;
   std::string given_trees_dir;
 
@@ -115,6 +117,8 @@ int main(int argc, char ** argv)
       mission_precheck = false;
     } else if (arg == "--generate-first") {
       generate_first = true;
+    } else if (arg == "--no-generate-first") {
+      generate_first = false;
     } else if (arg == "--runtime-contract") {
       runtime_contract = true;
     } else if (arg == "--time-scale") {
